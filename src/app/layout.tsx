@@ -4,8 +4,8 @@ import { AuthProvider } from '@/components/auth/auth-provider';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'HUS-scheduler',
-  description: 'Schedule and task management for HUS students.',
+  title: 'HUSスケジューラー',
+  description: '北海道科学大学の学生向けスケジュール・タスク管理アプリ。',
 };
 
 export default function RootLayout({
@@ -14,7 +14,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="ja" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

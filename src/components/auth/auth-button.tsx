@@ -1,3 +1,4 @@
+
 "use client";
 
 import { signIn, signOut, useSession } from "next-auth/react";
@@ -21,11 +22,9 @@ export function AuthButton() {
   }
 
   if (status === "unauthenticated") {
-    // Typically, login is handled on a dedicated /login page.
-    // This button could be shown on public pages if needed.
     return (
-      <Button onClick={() => signIn("google")} variant="outline">
-        <LogIn className="mr-2 h-4 w-4" /> Login
+      <Button onClick={() => signIn(undefined, { callbackUrl: '/login' })} variant="outline">
+        <LogIn className="mr-2 h-4 w-4" /> ログイン
       </Button>
     );
   }
@@ -43,7 +42,7 @@ export function AuthButton() {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-10 w-10 rounded-full">
             <Avatar className="h-9 w-9">
-              <AvatarImage src={user.image ?? undefined} alt={user.name ?? "User avatar"} />
+              <AvatarImage src={user.image ?? undefined} alt={user.name ?? "ユーザーアバター"} />
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
           </Button>
@@ -58,15 +57,15 @@ export function AuthButton() {
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {/* Add more items here like Profile, Settings if needed */}
+          {/* ここにプロフィールや設定などの項目を追加できます */}
           <DropdownMenuItem onClick={() => signOut({ callbackUrl: '/login' })}>
             <LogOut className="mr-2 h-4 w-4" />
-            <span>Log out</span>
+            <span>ログアウト</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     );
   }
 
-  return null; // Fallback for unexpected states
+  return null; 
 }

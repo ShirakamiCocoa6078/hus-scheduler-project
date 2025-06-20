@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useSession } from "next-auth/react";
@@ -18,7 +19,7 @@ export default function InitialRedirectPage() {
 
   useEffect(() => {
     if (!isClientRendered || authStatus === "loading" || isOnboardingLoading) {
-      return; // Wait for session and onboarding status to be resolved on client
+      return; 
     }
 
     if (authStatus === "authenticated") {
@@ -35,8 +36,8 @@ export default function InitialRedirectPage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-4">
       <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-      <h1 className="text-2xl font-headline text-primary">HUS-scheduler</h1>
-      <p className="text-muted-foreground">Loading your experience...</p>
+      <h1 className="text-2xl font-headline text-primary">HUSスケジューラー</h1>
+      <p className="text-muted-foreground">読み込み中...</p>
     </div>
   );
 }

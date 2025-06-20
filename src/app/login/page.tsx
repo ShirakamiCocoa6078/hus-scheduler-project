@@ -9,9 +9,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertTriangle, Mail, KeyRound } from "lucide-react";
+import { Loader2, AlertTriangle, Mail, KeyRound, LogIn, UserPlus } from "lucide-react";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
 
 const GoogleIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="24px" height="24px">
@@ -26,7 +27,7 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // General loading for page state
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isCredentialsLoading, setIsCredentialsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,26 +35,27 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("1234567@stu.hus.ac.jp");
   const [password, setPassword] = useState("test1234");
+  const [showLoginForm, setShowLoginForm] = useState(false);
 
   useEffect(() => {
     const nextAuthError = searchParams.get("error");
     if (nextAuthError) {
-      let errorMessage = "An unknown error occurred during login. Please try again.";
+      let errorMessage = "ログイン中に不明なエラーが発生しました。もう一度お試しください。";
       if (nextAuthError === "OAuthAccountNotLinked") {
-        errorMessage = "This email is already linked with another account. Try a different login method.";
+        errorMessage = "このメールアドレスは別のアカウントにリンクされています。別のログイン方法をお試しください。";
       } else if (nextAuthError === "DomainMismatch") {
-         errorMessage = "Access is restricted to @stu.hus.ac.jp emails for Google Sign-In. Please use your university Google account.";
+         errorMessage = "Googleでのサインインは、@stu.hus.ac.jp のメールアドレスに制限されています。大学のGoogleアカウントを使用してください。";
       } else if (nextAuthError === "CredentialsSignin") {
-        errorMessage = "Invalid email or password. Please check your credentials and try again.";
+        errorMessage = "メールアドレスまたはパスワードが無効です。入力情報をご確認の上、再度お試しください。";
       }
       
       setError(errorMessage);
       toast({
-        title: "Login Error",
+        title: "ログインエラー",
         description: errorMessage,
         variant: "destructive",
       });
-      router.replace('/login', { scroll: false }); // Clean URL
+      router.replace('/login', { scroll: false }); 
     }
   }, [searchParams, router, toast]);
 
@@ -67,21 +69,17 @@ export default function LoginPage() {
     setIsGoogleLoading(true);
     setError(null);
     try {
-      // NextAuth handles redirection or error display via callbackUrl query params
       const res = await signIn("google", { callbackUrl: "/", redirect: true });
-      // If redirect: true, this part might not be reached if successful.
-      // If signIn fails before redirect (e.g. popup closed, network error), res will have error.
       if (res?.error) {
-          const errMessage = res.error === "Callback" ? "Login cancelled or failed. Please try again." : res.error;
+          const errMessage = res.error === "Callback" ? "ログインがキャンセルされたか失敗しました。もう一度お試しください。" : res.error;
           setError(errMessage);
-          toast({ title: "Login Failed", description: errMessage, variant: "destructive" });
+          toast({ title: "ログイン失敗", description: errMessage, variant: "destructive" });
           setIsGoogleLoading(false);
       }
-      // If successful redirect, isLoading will persist until page navigation
     } catch (err) {
-      console.error("Google Sign-In failed unexpectedly:", err);
-      setError("An unexpected error occurred with Google Sign-In. Please try again.");
-      toast({ title: "Login Error", description: "An unexpected error occurred. Please try again.", variant: "destructive" });
+      console.error("Googleサインインが予期せず失敗しました:", err);
+      setError("Googleサインイン中に予期せぬエラーが発生しました。もう一度お試しください。");
+      toast({ title: "ログインエラー", description: "予期せぬエラーが発生しました。もう一度お試しください。", variant: "destructive" });
       setIsGoogleLoading(false);
     }
   };
@@ -92,7 +90,7 @@ export default function LoginPage() {
     setError(null);
     try {
       const result = await signIn("credentials", {
-        redirect: false, // Handle redirect manually or rely on useEffect watching status
+        redirect: false,
         email,
         password,
         callbackUrl: "/",
@@ -100,43 +98,41 @@ export default function LoginPage() {
 
       if (result?.error) {
         const errorMessage = result.error === "CredentialsSignin"
-          ? "Invalid email or password. Please try again."
-          : "Login failed. Please check your credentials or try another method.";
+          ? "メールアドレスまたはパスワードが無効です。再度お試しください。"
+          : "ログインに失敗しました。認証情報を確認するか、別の方法をお試しください。";
         setError(errorMessage);
         toast({
-          title: "Login Failed",
+          title: "ログイン失敗",
           description: errorMessage,
           variant: "destructive",
         });
       } else if (result?.ok) {
-        // signIn was successful, useEffect for status "authenticated" will redirect.
-        // router.replace(result.url || "/"); // Or explicitly redirect
+        // Success, useEffect will handle redirect
       } else {
-        // Should not happen if no error and no ok
-        setError("An unexpected issue occurred during login. Please try again.");
-        toast({ title: "Login Error", description: "An unexpected issue occurred. Please try again.", variant: "destructive" });
+        setError("ログイン中に予期せぬ問題が発生しました。もう一度お試しください。");
+        toast({ title: "ログインエラー", description: "予期せぬ問題が発生しました。もう一度お試しください。", variant: "destructive" });
       }
     } catch (err) {
-      console.error("Credentials Sign-In failed unexpectedly:", err);
-      setError("An unexpected error occurred. Please try again.");
-      toast({ title: "Login Error", description: "An unexpected error occurred. Please try again.", variant: "destructive" });
+      console.error("認証情報サインインが予期せず失敗しました:", err);
+      setError("予期せぬエラーが発生しました。もう一度お試しください。");
+      toast({ title: "ログインエラー", description: "予期せぬエラーが発生しました。もう一度お試しください。", variant: "destructive" });
     } finally {
       setIsCredentialsLoading(false);
     }
   };
   
-  const anyLoading = isLoading || isGoogleLoading || isCredentialsLoading;
+  const anyLoading = isGoogleLoading || isCredentialsLoading;
 
-  if (status === "loading" && !anyLoading) { // Only show full page loader if not already loading from a button press
+  if (status === "loading" && !anyLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground">Loading session...</p>
+        <p className="text-muted-foreground">セッションを読み込んでいます...</p>
       </div>
     );
   }
   
-  if (status === "authenticated") return null; // useEffect will redirect
+  if (status === "authenticated") return null;
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-secondary p-4">
@@ -145,100 +141,128 @@ export default function LoginPage() {
           <div className="inline-block p-3 bg-primary rounded-full mb-4 mx-auto">
             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary-foreground))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-calendar-check"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
           </div>
-          <CardTitle className="text-3xl font-headline text-primary">HUS-scheduler</CardTitle>
+          <CardTitle className="text-3xl font-headline text-primary">HUSスケジューラー</CardTitle>
           <CardDescription className="text-muted-foreground">
-            Sign in to manage your university life.
+            サインインして大学生活を管理しましょう。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {error && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Login Failed</AlertTitle>
+              <AlertTitle>ログイン失敗</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+
+          {!showLoginForm && (
+            <div className="space-y-4">
+               <Button
+                onClick={() => setShowLoginForm(true)}
+                disabled={anyLoading}
+                className="w-full text-base py-6"
+                aria-label="ログインフォームを開く"
+              >
+                <LogIn className="mr-2 h-5 w-5" />
+                <span>ログイン</span>
+              </Button>
+              <Button
+                onClick={() => router.push('/signup')}
+                disabled={anyLoading}
+                variant="outline"
+                className="w-full text-base py-6"
+                aria-label="新規登録ページへ移動"
+              >
+                <UserPlus className="mr-2 h-5 w-5" />
+                <span>新規登録</span>
+              </Button>
+            </div>
+          )}
           
-          <Button
-            onClick={handleGoogleSignIn}
-            disabled={anyLoading}
-            className="w-full text-base py-6 bg-accent hover:bg-accent/90 text-accent-foreground"
-            aria-label="Sign in with Google"
-          >
-            {isGoogleLoading ? (
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-            ) : (
-              <GoogleIcon />
-            )}
-            <span className="ml-2">Sign in with Google</span>
-          </Button>
+          {showLoginForm && (
+            <>
+              <Button
+                onClick={handleGoogleSignIn}
+                disabled={anyLoading}
+                className="w-full text-base py-6 bg-accent hover:bg-accent/90 text-accent-foreground"
+                aria-label="Googleでサインイン"
+              >
+                {isGoogleLoading ? (
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                ) : (
+                  <GoogleIcon />
+                )}
+                <span className="ml-2">Googleでサインイン</span>
+              </Button>
 
-          <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">
-                Or sign in with email
-              </span>
-            </div>
-          </div>
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">
+                    またはメールアドレスでサインイン
+                  </span>
+                </div>
+              </div>
 
-          <form onSubmit={handleCredentialsSignIn} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  id="email" 
-                  type="email" 
-                  placeholder="1234567@stu.hus.ac.jp" 
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)} 
-                  required 
-                  className="pl-10"
+              <form onSubmit={handleCredentialsSignIn} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email">メールアドレス</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      placeholder="1234567@stu.hus.ac.jp" 
+                      value={email} 
+                      onChange={(e) => setEmail(e.target.value)} 
+                      required 
+                      className="pl-10"
+                      disabled={anyLoading}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="password">パスワード</Label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      id="password" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      value={password} 
+                      onChange={(e) => setPassword(e.target.value)} 
+                      required 
+                      className="pl-10"
+                      disabled={anyLoading}
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="submit"
                   disabled={anyLoading}
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
-               <div className="relative">
-                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  id="password" 
-                  type="password" 
-                  placeholder="••••••••" 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)} 
-                  required 
-                  className="pl-10"
-                  disabled={anyLoading}
-                />
-              </div>
-            </div>
-            <Button
-              type="submit"
-              disabled={anyLoading}
-              className="w-full text-base py-6"
-              aria-label="Sign in with Email and Password"
-            >
-              {isCredentialsLoading ? (
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              ) : (
-                <Mail className="mr-2 h-5 w-5" />
-              )}
-              Sign in with Email
-            </Button>
-          </form>
+                  className="w-full text-base py-6"
+                  aria-label="メールアドレスとパスワードでサインイン"
+                >
+                  {isCredentialsLoading ? (
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  ) : (
+                    <Mail className="mr-2 h-5 w-5" />
+                  )}
+                  メールアドレスでサインイン
+                </Button>
+              </form>
+              <Button variant="link" onClick={() => setShowLoginForm(false)} className="w-full">戻る</Button>
+            </>
+          )}
           
           <p className="text-xs text-center text-muted-foreground px-4">
-            Google Sign-In is restricted to <strong>@stu.hus.ac.jp</strong> addresses.
-            By signing in, you agree to our imaginary Terms of Service.
+            Googleでのサインインは <strong>@stu.hus.ac.jp</strong> のアドレスに制限されています。
+            サインインすることにより、当社の架空の利用規約に同意したものとみなされます。
           </p>
         </CardContent>
       </Card>
     </div>
   );
 }
-

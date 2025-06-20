@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useSession } from "next-auth/react";
@@ -12,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Settings2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { DeleteAccountButton } from "@/components/layout/delete-account-button";
 
 
 export default function OnboardingPage() {
@@ -44,15 +46,11 @@ export default function OnboardingPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    // In a real app, you'd save this data to your backend (e.g., Firestore)
-    // For now, we'll simulate a save and update localStorage.
-    console.log("Onboarding data:", { department, homeStation, universityStation, syncMoodle });
+    
+    console.log("オンボーディングデータ:", { department, homeStation, universityStation, syncMoodle });
 
-    // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Example: Store a simplified version or just the fact that onboarding is complete
-    // Real preferences would be stored server-side, linked to the user ID.
     try {
       localStorage.setItem('user_department', department);
       localStorage.setItem('user_home_station', homeStation);
@@ -60,14 +58,14 @@ export default function OnboardingPage() {
       localStorage.setItem('user_sync_moodle', String(syncMoodle));
       setOnboardedStatus(true);
       toast({
-        title: "Preferences Saved!",
-        description: "Welcome to HUS-scheduler!",
+        title: "設定を保存しました！",
+        description: "HUSスケジューラーへようこそ！",
       });
       router.replace("/dashboard");
     } catch (error) {
        toast({
-        title: "Error",
-        description: "Could not save preferences. Please try again.",
+        title: "エラー",
+        description: "設定を保存できませんでした。もう一度お試しください。",
         variant: "destructive",
       });
     } finally {
@@ -79,13 +77,12 @@ export default function OnboardingPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground">Loading onboarding...</p>
+        <p className="text-muted-foreground">オンボーディングを読み込んでいます...</p>
       </div>
     );
   }
 
   if (authStatus === "unauthenticated") {
-    // This case should be handled by the redirect effect, but as a fallback:
     return null; 
   }
   
@@ -96,35 +93,35 @@ export default function OnboardingPage() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <Settings2 size={32} />
           </div>
-          <CardTitle className="text-3xl font-headline text-primary">Welcome to HUS-scheduler!</CardTitle>
+          <CardTitle className="text-3xl font-headline text-primary">HUSスケジューラーへようこそ！</CardTitle>
           <CardDescription className="text-muted-foreground">
-            Let's set up your preferences to personalize your experience.
+            よりパーソナルな体験のために、あなたの設定を行いましょう。
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="department" className="font-medium">Department</Label>
+              <Label htmlFor="department" className="font-medium">学部・学科</Label>
               <Select value={department} onValueChange={setDepartment} required>
-                <SelectTrigger id="department" aria-label="Select your department">
-                  <SelectValue placeholder="Select your department" />
+                <SelectTrigger id="department" aria-label="学部・学科を選択してください">
+                  <SelectValue placeholder="学部・学科を選択" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cs">Computer Science</SelectItem>
-                  <SelectItem value="ee">Electrical Engineering</SelectItem>
-                  <SelectItem value="me">Mechanical Engineering</SelectItem>
-                  <SelectItem value="bio">Biology</SelectItem>
-                  <SelectItem value="chem">Chemistry</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  <SelectItem value="cs">情報科学部</SelectItem>
+                  <SelectItem value="ee">工学部 電気電子工学科</SelectItem>
+                  <SelectItem value="me">工学部 機械工学科</SelectItem>
+                  <SelectItem value="bio">保健医療学部</SelectItem>
+                  <SelectItem value="chem">薬学部</SelectItem>
+                  <SelectItem value="other">その他</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="homeStation" className="font-medium">Home Station</Label>
+              <Label htmlFor="homeStation" className="font-medium">最寄駅</Label>
               <Input 
                 id="homeStation" 
-                placeholder="e.g., Shinjuku Station" 
+                placeholder="例：手稲駅" 
                 value={homeStation} 
                 onChange={(e) => setHomeStation(e.target.value)} 
                 required 
@@ -132,10 +129,10 @@ export default function OnboardingPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="universityStation" className="font-medium">University Station</Label>
+              <Label htmlFor="universityStation" className="font-medium">大学の最寄駅</Label>
               <Input 
                 id="universityStation" 
-                placeholder="e.g., Hongo-sanchome Station" 
+                placeholder="例：手稲駅" 
                 value={universityStation} 
                 onChange={(e) => setUniversityStation(e.target.value)} 
                 required 
@@ -144,16 +141,16 @@ export default function OnboardingPage() {
             
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">
-                <Label htmlFor="syncMoodle" className="text-base font-medium">Sync Moodle Data</Label>
+                <Label htmlFor="syncMoodle" className="text-base font-medium">Moodleデータと同期</Label>
                 <p className="text-sm text-muted-foreground">
-                  Automatically import assignments and deadlines from Moodle.
+                  Moodleから課題や締切を自動的にインポートします。
                 </p>
               </div>
               <Switch 
                 id="syncMoodle" 
                 checked={syncMoodle} 
                 onCheckedChange={setSyncMoodle}
-                aria-label="Sync Moodle Data"
+                aria-label="Moodleデータと同期"
               />
             </div>
             <CardFooter className="p-0 pt-4">
@@ -163,12 +160,13 @@ export default function OnboardingPage() {
                 ) : (
                   <Save className="mr-2 h-5 w-5" /> 
                 )}
-                Save Preferences & Continue
+                設定を保存して続ける
               </Button>
             </CardFooter>
           </form>
         </CardContent>
       </Card>
+      <DeleteAccountButton />
     </div>
   );
 }

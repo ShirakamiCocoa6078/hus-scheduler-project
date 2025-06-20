@@ -1,35 +1,36 @@
+
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CheckSquare, ListChecks, AlertTriangle, CalendarClock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { format, parseISO, differenceInDays, isPast } from 'date-fns';
+import { format, parseISO, differenceInDays, isPast, formatRelative } from 'date-fns';
+import { ja } from 'date-fns/locale';
 import Image from "next/image";
 
 interface Task {
   id: string;
   title: string;
   dueDate: string; // ISO string
-  priority: "High" | "Medium" | "Low";
-  course?: string; // Optional: link to a course
+  priority: "高" | "中" | "低"; // Changed to Japanese
+  course?: string; 
   isMoodleAssignment?: boolean;
 }
 
 const mockTasks: Task[] = [
-  { id: "1", title: "Submit CS505 Project Proposal", dueDate: "2024-08-15T23:59:00Z", priority: "High", course: "CS505", isMoodleAssignment: true },
-  { id: "2", title: "Read Chapter 3 for LIT400", dueDate: "2024-08-10T23:59:00Z", priority: "Medium", course: "LIT400" },
-  { id: "3", title: "CHM320 Lab Report", dueDate: "2024-08-05T23:59:00Z", priority: "High", course: "CHM320", isMoodleAssignment: true },
-  { id: "4", title: "Prepare for Quantum Mechanics Quiz", dueDate: "2024-08-20T23:59:00Z", priority: "Medium" },
+  { id: "1", title: "CS505プロジェクト提案書提出", dueDate: "2024-08-15T23:59:00Z", priority: "高", course: "CS505", isMoodleAssignment: true },
+  { id: "2", title: "LIT400 第3章を読む", dueDate: "2024-08-10T23:59:00Z", priority: "中", course: "LIT400" },
+  { id: "3", title: "CHM320 実験レポート", dueDate: "2024-08-05T23:59:00Z", priority: "高", course: "CHM320", isMoodleAssignment: true },
+  { id: "4", title: "量子力学小テストの準備", dueDate: "2024-08-20T23:59:00Z", priority: "中" },
 ];
 
-// Sort tasks by due date (ascending)
 const sortedTasks = mockTasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
 export function TaskManagementWidget() {
 
   const getPriorityBadgeVariant = (priority: Task["priority"]): "destructive" | "secondary" | "default" => {
-    if (priority === "High") return "destructive";
-    if (priority === "Medium") return "secondary";
+    if (priority === "高") return "destructive";
+    if (priority === "中") return "secondary";
     return "default";
   };
 
@@ -38,10 +39,13 @@ export function TaskManagementWidget() {
     const now = new Date();
     const daysRemaining = differenceInDays(due, now);
 
-    if (isPast(due)) return { text: `Overdue by ${differenceInDays(now, due)} days`, color: "text-red-500 font-semibold" };
-    if (daysRemaining === 0) return { text: "Due today", color: "text-orange-500 font-semibold" };
-    if (daysRemaining === 1) return { text: "Due tomorrow", color: "text-yellow-600" };
-    return { text: `Due in ${daysRemaining} days`, color: "text-green-600" };
+    if (isPast(due)) {
+        const overdueDays = differenceInDays(now, due);
+        return { text: `${overdueDays}日遅延`, color: "text-red-500 font-semibold" };
+    }
+    if (daysRemaining === 0) return { text: "本日締切", color: "text-orange-500 font-semibold" };
+    if (daysRemaining === 1) return { text: "明日締切", color: "text-yellow-600" };
+    return { text: `${daysRemaining}日後締切`, color: "text-green-600" };
   };
 
 
@@ -50,9 +54,8 @@ export function TaskManagementWidget() {
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-xl font-headline text-primary flex items-center">
           <ListChecks className="mr-3 h-6 w-6" />
-          Upcoming Tasks
+          今後のタスク
         </CardTitle>
-        {/* <Button size="sm" variant="ghost">View All</Button> */}
       </CardHeader>
       <CardContent>
         {sortedTasks.length > 0 ? (
@@ -63,16 +66,16 @@ export function TaskManagementWidget() {
                 <div key={task.id} className="p-3 rounded-md border bg-card hover:bg-secondary/30 transition-colors">
                   <div className="flex justify-between items-start">
                     <h3 className="font-semibold text-md text-accent flex items-center">
-                       {task.isMoodleAssignment && <CheckSquare className="mr-2 h-5 w-5 text-blue-500" titleAccess="Moodle Assignment"/>}
+                       {task.isMoodleAssignment && <CheckSquare className="mr-2 h-5 w-5 text-blue-500" title="Moodle課題"/>}
                        {task.title}
                     </h3>
                     <Badge variant={getPriorityBadgeVariant(task.priority)} className="ml-2 shrink-0">{task.priority}</Badge>
                   </div>
-                  {task.course && <p className="text-xs text-muted-foreground mt-0.5">Course: {task.course}</p>}
+                  {task.course && <p className="text-xs text-muted-foreground mt-0.5">コース: {task.course}</p>}
                   <div className="flex items-center text-sm mt-1">
                     <CalendarClock className={`mr-2 h-4 w-4 ${dueDateInfo.color}`} />
                     <span className={dueDateInfo.color}>{dueDateInfo.text}</span>
-                    <span className="text-xs text-muted-foreground ml-1">({format(parseISO(task.dueDate), "MMM d, p")})</span>
+                    <span className="text-xs text-muted-foreground ml-1">({format(parseISO(task.dueDate), "MMM d日 p", { locale: ja })})</span>
                   </div>
                 </div>
               );
@@ -80,9 +83,9 @@ export function TaskManagementWidget() {
           </div>
         ) : (
            <div className="text-center py-8">
-            <Image src="https://placehold.co/300x200.png" alt="No tasks placeholder" width={300} height={200} className="mx-auto rounded-md mb-4 opacity-70" data-ai-hint="empty checklist" />
-            <p className="text-muted-foreground font-medium text-lg">No pending tasks!</p>
-            <p className="text-sm text-muted-foreground">Looks like you're all caught up.</p>
+            <Image src="https://placehold.co/300x200.png" alt="保留中のタスクはありません" width={300} height={200} className="mx-auto rounded-md mb-4 opacity-70" data-ai-hint="empty checklist" />
+            <p className="text-muted-foreground font-medium text-lg">保留中のタスクはありません！</p>
+            <p className="text-sm text-muted-foreground">すべて完了しているようです。</p>
           </div>
         )}
       </CardContent>
