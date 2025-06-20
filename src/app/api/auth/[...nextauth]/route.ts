@@ -1,7 +1,13 @@
 
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import type { NextAuthOptions } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+import type { NextAuthOptions, User as NextAuthUser } from "next-auth";
+
+// Define a custom user type that includes id
+interface CustomUser extends NextAuthUser {
+  id: string;
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -17,65 +23,88 @@ export const authOptions: NextAuthOptions = {
         },
       },
     }),
+    CredentialsProvider({
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "email", placeholder: "your-email@example.com" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials, req) {
+        // Add your own authentication logic here
+        if (credentials?.email === "1234567@stu.hus.ac.jp" && credentials?.password === "test1234") {
+          // Any object returned will be saved in `user` property of the JWT
+          return { id: "test-user-001", name: "Test User", email: "1234567@stu.hus.ac.jp", image: null } as CustomUser;
+        } else {
+          // If you return null then an error will be displayed advising the user to check their details.
+          // For more control, you can throw an Error here, which will be caught by NextAuth.js.
+          // e.g. throw new Error("Invalid credentials");
+          return null;
+        }
+      },
+    }),
   ],
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
-    async signIn({ account, profile }) {
+    async signIn({ user, account, profile }) {
       if (account?.provider === "google") {
-        // Ensure the profile object and email_verified property exist
         if (profile && 'email_verified' in profile && (profile as any).email_verified) {
-          // Also check if the email domain is allowed (if applicable)
-          // Example: return profile.email.endsWith("@example.com")
-          // For HUS, it's @stu.hus.ac.jp
           if (profile.email && profile.email.endsWith("@stu.hus.ac.jp")) {
             return true;
           } else {
-            // User's email is verified but not from the allowed domain
-            // It's better to handle this by redirecting with an error or showing a message
-            // For now, returning false will prevent sign-in.
-            // Consider redirecting to a custom error page: return '/auth/error?error=DomainMismatch';
-            console.log("HUS Domain Mismatch: ", profile.email);
-            return '/login?error=DomainMismatch'; // Redirect to login with an error
+            console.log("HUS Domain Mismatch (Google): ", profile.email);
+            return '/login?error=DomainMismatch'; 
           }
         }
+        return false; // Google email not verified or profile missing
       }
-      // For other providers or if email is not verified (though Google usually ensures this)
-      return false; // Do not allow sign in
+      if (account?.provider === "credentials") {
+        // If authorize returned a user object, sign-in is allowed.
+        return !!user;
+      }
+      return false; // Default to deny for other providers or issues
     },
-    async jwt({ token, account, profile }) {
-      // Persist the OAuth access_token and or the user id to the token right after signin
-      if (account) {
-        token.accessToken = account.access_token;
-        // If you have a user id from your database you can add it here
-        // token.id = user.id
+    async jwt({ token, user, account, profile }) {
+      // The `user` object is passed on initial sign-in (OAuth or Credentials)
+      if (user) {
+        token.id = user.id;
+        token.name = user.name;
+        token.email = user.email;
+        token.picture = user.image; // `image` from user object (null for our test user)
       }
-      if (profile) {
-        // Add profile information to the token
-        token.name = profile.name;
-        token.email = profile.email;
-        token.picture = (profile as any).picture; // or profile.image
+
+      // For Google OAuth, `account` and `profile` are available on initial sign-in
+      if (account?.provider === "google") {
+        if (account.access_token) {
+          token.accessToken = account.access_token;
+        }
+        if (profile) {
+          // Potentially override/supplement with more accurate Google profile info
+          token.name = profile.name ?? token.name;
+          token.email = profile.email ?? token.email;
+          token.picture = (profile as any).picture ?? token.picture;
+        }
       }
       return token;
     },
     async session({ session, token }) {
       // Send properties to the client, like an access_token and user id from a provider.
-      session.accessToken = token.accessToken as string;
-      // If you added user id to token in jwt callback, pass it to session
-      // session.user.id = token.id as string;
-
+      if (token.accessToken) session.accessToken = token.accessToken as string;
+      if (token.id) session.user.id = token.id as string;
+      
       // Ensure all desired user properties are passed to the session
+      // These should be reliably sourced from the token now
       if (token.name) session.user.name = token.name;
       if (token.email) session.user.email = token.email;
-      if (token.picture) session.user.image = token.picture; // next-auth expects `image` for user avatar
+      if (token.picture) session.user.image = token.picture;
+      else session.user.image = null; // Ensure image is null if not present in token
       
       return session;
     },
   },
   pages: {
-    signIn: '/login', // Custom login page
-    // error: '/auth/error', // Custom error page (optional)
+    signIn: '/login',
+    // error: '/auth/error', // Custom error page for NextAuth errors like "CredentialsSignin"
   },
-  // Enable debug messages in the console if not in production
   debug: process.env.NODE_ENV !== 'production',
 };
 
