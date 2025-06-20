@@ -1,12 +1,14 @@
 "use client";
 
 import { signIn, useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Loader2, AlertTriangle } from "lucide-react";
 import Image from "next/image";
+import { useToast } from "@/hooks/use-toast";
 
 // A simple SVG Google icon. In a real app, you might use a library or a more detailed SVG.
 const GoogleIcon = () => (
@@ -20,8 +22,41 @@ const GoogleIcon = () => (
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const nextAuthError = searchParams.get("error");
+    if (nextAuthError) {
+      if (nextAuthError === "OAuthAccountNotLinked") {
+        setError("This email is already linked with another account. Try a different login method.");
+        toast({
+          title: "Login Error",
+          description: "This email is already linked with another account. Try a different login method.",
+          variant: "destructive",
+        });
+      } else if (nextAuthError === "DomainMismatch") {
+         setError("Access is restricted to @stu.hus.ac.jp emails. Please use your university Google account.");
+         toast({
+          title: "Access Denied",
+          description: "Access is restricted to @stu.hus.ac.jp emails. Please use your university Google account.",
+          variant: "destructive",
+        });
+      } else {
+        setError("An unknown error occurred during login. Please try again.");
+        toast({
+          title: "Login Error",
+          description: "An unknown error occurred during login. Please try again.",
+          variant: "destructive",
+        });
+      }
+      // Clean the URL by removing the error query parameter
+      router.replace('/login', { scroll: false });
+    }
+  }, [searchParams, router, toast]);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -31,17 +66,48 @@ export default function LoginPage() {
 
   const handleLogin = async () => {
     setIsLoading(true);
+    setError(null); // Clear previous errors
     try {
-      // The redirect will be handled by NextAuth
-      // Errors (e.g., email domain mismatch) should be handled by NextAuth configuration
-      // and may redirect back here with an error query parameter.
-      await signIn("google", { callbackUrl: "/" });
+      // The redirect will be handled by NextAuth itself if successful.
+      // If there's an error handled by NextAuth (like domain mismatch in our callback),
+      // it will redirect back here, and the useEffect for searchParams will pick it up.
+      await signIn("google", { callbackUrl: "/", redirect: false });
+      // If signIn with redirect: false returns an error, it means immediate failure (e.g. popup closed)
+      // This is less common for Google OAuth button flow as it usually redirects.
+      // We'll check status for "authenticated" or rely on the searchParams error handling.
+      // For now, just setting isLoading to false if it doesn't redirect (which it should).
+      
+      // Check if session status changes quickly to authenticated
+      // This is a bit of a race, usually the redirect happens.
+      // The useEffect for status === "authenticated" is more reliable.
+      const res = await signIn("google", { callbackUrl: "/", redirect: false });
+      if (res?.error) {
+          // This error is usually when the user closes the popup or there's a network issue before Google redirect.
+          // More specific errors from Google (like account issues) or our callback (domain mismatch)
+          // will come via the callbackUrl's query parameters.
+          setError(res.error === "Callback" ? "Login cancelled or failed. Please try again." : res.error);
+          toast({
+            title: "Login Failed",
+            description: res.error === "Callback" ? "Login cancelled or failed. Please try again." : res.error,
+            variant: "destructive",
+          });
+          setIsLoading(false);
+      } else if (!res?.url) {
+        // If no URL, it means no redirect is happening, potentially an issue or successful immediate sign-in (rare)
+        setIsLoading(false);
+      }
+      // If res.url is present, NextAuth is handling the redirect. isLoading stays true until page navigation.
+
     } catch (error) {
-      console.error("Login failed:", error);
-      // You might want to show a toast notification here
+      console.error("Login failed unexpectedly:", error);
+      setError("An unexpected error occurred. Please try again.");
+      toast({
+        title: "Login Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
       setIsLoading(false);
     }
-    // setIsLoading will remain true if redirect occurs, otherwise set to false on error.
   };
 
   if (status === "loading" || status === "authenticated") {
@@ -58,7 +124,6 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center">
           <div className="inline-block p-3 bg-primary rounded-full mb-4">
-            {/* Placeholder for a logo or relevant icon */}
             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary-foreground))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-calendar-check"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
           </div>
           <CardTitle className="text-3xl font-headline text-primary">HUS-scheduler</CardTitle>
@@ -67,6 +132,13 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {error && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Login Failed</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
           <Button
             onClick={handleLogin}
             disabled={isLoading}
