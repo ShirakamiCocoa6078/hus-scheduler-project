@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status";
@@ -15,17 +15,16 @@ import { Loader2, Settings2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DeleteAccountButton } from "@/components/layout/delete-account-button";
 
-
 export default function OnboardingPage() {
-  const { data: session, status: authStatus } = useSession();
+  const { data: session, status: authStatus, update: updateSession } = useSession();
   const router = useRouter();
   const { toast } = useToast();
-  const { isOnboarded, setOnboardedStatus, isLoading: isOnboardingLoading } = useOnboardingStatus();
+  const { isOnboarded, isLoading: isOnboardingLoading } = useOnboardingStatus();
   
-  const [department, setDepartment] = useState("");
-  const [homeStation, setHomeStation] = useState("");
-  const [universityStation, setUniversityStation] = useState("");
-  const [syncMoodle, setSyncMoodle] = useState(false);
+  const [department, setDepartment] = useState(session?.user?.onboardingData?.department || "");
+  const [homeStation, setHomeStation] = useState(session?.user?.onboardingData?.homeStation || "");
+  const [universityStation, setUniversityStation] = useState(session?.user?.onboardingData?.universityStation || "");
+  const [syncMoodle, setSyncMoodle] = useState(session?.user?.onboardingData?.syncMoodle || false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isClientRendered, setIsClientRendered] = useState(false);
 
@@ -34,11 +33,23 @@ export default function OnboardingPage() {
   }, []);
 
   useEffect(() => {
+    if (session?.user?.onboardingData) {
+      const { department, homeStation, universityStation, syncMoodle } = session.user.onboardingData;
+      if (department) setDepartment(department);
+      if (homeStation) setHomeStation(homeStation);
+      if (universityStation) setUniversityStation(universityStation);
+      if (syncMoodle !== undefined) setSyncMoodle(syncMoodle);
+    }
+  }, [session]);
+
+
+  useEffect(() => {
     if (!isClientRendered || authStatus === "loading" || isOnboardingLoading) return;
 
     if (authStatus === "unauthenticated") {
       router.replace("/login");
     } else if (authStatus === "authenticated" && isOnboarded) {
+      // オンボーディング済みならダッシュボードへ
       router.replace("/dashboard");
     }
   }, [isClientRendered, authStatus, isOnboarded, isOnboardingLoading, router]);
@@ -47,25 +58,33 @@ export default function OnboardingPage() {
     e.preventDefault();
     setIsSubmitting(true);
     
-    console.log("オンボーディングデータ:", { department, homeStation, universityStation, syncMoodle });
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const onboardingPayload = { department, homeStation, universityStation, syncMoodle };
 
     try {
-      localStorage.setItem('user_department', department);
-      localStorage.setItem('user_home_station', homeStation);
-      localStorage.setItem('user_university_station', universityStation);
-      localStorage.setItem('user_sync_moodle', String(syncMoodle));
-      setOnboardedStatus(true);
+      const response = await fetch('/api/update-onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(onboardingPayload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "オンボーディング情報の更新に失敗しました。");
+      }
+      
+      // セッション情報を更新して、クライアント側の状態を最新にする
+      await updateSession();
+
       toast({
         title: "設定を保存しました！",
-        description: "HUSスケジューラーへようこそ！",
+        description: "HUS-schedulerへようこそ！",
       });
       router.replace("/dashboard");
     } catch (error) {
+       const message = error instanceof Error ? error.message : "設定を保存できませんでした。";
        toast({
         title: "エラー",
-        description: "設定を保存できませんでした。もう一度お試しください。",
+        description: `${message} もう一度お試しください。`,
         variant: "destructive",
       });
     } finally {
@@ -82,8 +101,9 @@ export default function OnboardingPage() {
     );
   }
 
-  if (authStatus === "unauthenticated") {
-    return null; 
+  // すでにオンボーディング済みの場合（セッションから判断）、または未認証の場合は何も表示しない（useEffectがリダイレクト処理）
+  if (authStatus === "unauthenticated" || (authStatus === "authenticated" && isOnboarded && !isSubmitting) ) {
+     return null; 
   }
   
   return (
@@ -93,7 +113,7 @@ export default function OnboardingPage() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <Settings2 size={32} />
           </div>
-          <CardTitle className="text-3xl font-headline text-primary">HUSスケジューラーへようこそ！</CardTitle>
+          <CardTitle className="text-3xl font-headline text-primary">HUS-schedulerへようこそ！</CardTitle>
           <CardDescription className="text-muted-foreground">
             よりパーソナルな体験のために、あなたの設定を行いましょう。
           </CardDescription>
@@ -143,7 +163,7 @@ export default function OnboardingPage() {
               <div className="space-y-0.5">
                 <Label htmlFor="syncMoodle" className="text-base font-medium">Moodleデータと同期</Label>
                 <p className="text-sm text-muted-foreground">
-                  Moodleから課題や締切を自動的にインポートします。
+                  Moodleから課題や締切を自動的にインポートします。(現在この機能はダミーです)
                 </p>
               </div>
               <Switch 
@@ -166,7 +186,9 @@ export default function OnboardingPage() {
           </form>
         </CardContent>
       </Card>
-      <DeleteAccountButton />
+      <div className="mt-8">
+         <DeleteAccountButton />
+      </div>
     </div>
   );
 }

@@ -23,7 +23,8 @@ export default function InitialRedirectPage() {
     }
 
     if (authStatus === "authenticated") {
-      if (isOnboarded) {
+      // セッションユーザーにオンボーディングデータがあり、それが完了しているか確認
+      if (session?.user?.onboardingData?.completed) {
         router.replace("/dashboard");
       } else {
         router.replace("/onboarding");
@@ -31,12 +32,12 @@ export default function InitialRedirectPage() {
     } else if (authStatus === "unauthenticated") {
       router.replace("/login");
     }
-  }, [isClientRendered, session, authStatus, isOnboarded, isOnboardingLoading, router]);
+  }, [isClientRendered, session, authStatus, isOnboarded, isOnboardingLoading, router]); // isOnboarded を依存配列に追加
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-4">
       <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-      <h1 className="text-2xl font-headline text-primary">HUSスケジューラー</h1>
+      <h1 className="text-2xl font-headline text-primary">HUS-scheduler</h1>
       <p className="text-muted-foreground">読み込み中...</p>
     </div>
   );

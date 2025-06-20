@@ -2,9 +2,10 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { TrainFront, Bus, TramFront, Clock, ArrowRightLeft, Footprints, Loader2 as LoaderIcon } from "lucide-react"; // Renamed Loader2 to avoid conflict
+import { TrainFront, Bus, TramFront, Clock, ArrowRightLeft, Footprints, Loader2 as LoaderIcon } from "lucide-react"; 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 
 interface TransitInfo {
   from: string;
@@ -16,9 +17,8 @@ interface TransitInfo {
   routeDetails?: string; 
 }
 
-const mockTransitInfo: TransitInfo = {
-  from: "手稲駅", 
-  to: "手稲駅", 
+// モックデータは、セッション情報から駅名が取得できない場合のフォールバックとして使用できます
+const mockTransitInfoBase: Omit<TransitInfo, 'from' | 'to'> = {
   departureTime: "08:15",
   arrivalTime: "08:55",
   duration: "40 分",
@@ -38,37 +38,44 @@ const TransitIcon = ({ mode, className }: { mode: TransitInfo["modeIcon"], class
 }
 
 export function TransitInformationWidget() {
+  const { data: session, status: authStatus } = useSession();
   const [transit, setTransit] = useState<TransitInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [homeStation, setHomeStation] = useState<string | null>(null);
-  const [uniStation, setUniStation] = useState<string | null>(null);
+  const [homeStation, setHomeStation] = useState<string>("自宅の駅"); // デフォルト値
+  const [uniStation, setUniStation] = useState<string>("大学の駅"); // デフォルト値
 
 
   useEffect(() => {
-    setIsLoading(true);
+    if (authStatus === "loading") {
+      setIsLoading(true);
+      return;
+    }
+
     let effectiveHomeStation = "自宅の駅";
     let effectiveUniStation = "大学の駅";
 
-    if (typeof window !== 'undefined') {
-      const storedHome = localStorage.getItem('user_home_station');
-      const storedUni = localStorage.getItem('user_university_station');
+    if (session?.user?.onboardingData) {
+      const { homeStation: storedHome, universityStation: storedUni } = session.user.onboardingData;
       if (storedHome) effectiveHomeStation = storedHome;
       if (storedUni) effectiveUniStation = storedUni;
-      setHomeStation(effectiveHomeStation);
-      setUniStation(effectiveUniStation);
     }
+    
+    // localStorageからの読み込みは削除し、セッション情報を優先
+    setHomeStation(effectiveHomeStation);
+    setUniStation(effectiveUniStation);
 
+    // API呼び出しをシミュレート
     setTimeout(() => {
       setTransit({
-        ...mockTransitInfo,
+        ...mockTransitInfoBase,
         from: effectiveHomeStation,
         to: effectiveUniStation,
       });
       setIsLoading(false);
     }, 1200);
-  }, []); // Run once on mount
+  }, [session, authStatus]); 
 
-  if (isLoading) {
+  if (isLoading || authStatus === "loading") {
     return (
       <Card className="shadow-lg">
         <CardHeader>
@@ -83,7 +90,7 @@ export function TransitInformationWidget() {
     );
   }
 
-  if (!transit || !homeStation || !uniStation) {
+  if (!transit) { // homeStation や uniStation のチェックは、デフォルト値があるので不要になる可能性
      return (
       <Card className="shadow-lg">
         <CardHeader>
@@ -95,7 +102,7 @@ export function TransitInformationWidget() {
           <Image src="https://placehold.co/200x150.png" alt="交通情報エラーのプレースホルダー" width={200} height={150} className="mx-auto rounded-md mb-4 opacity-70" data-ai-hint="map route" />
           <p className="text-muted-foreground">交通情報を読み込めませんでした。</p>
           <CardDescription className="text-xs mt-2">
-            オンボーディングで自宅と大学の最寄駅を設定してください。実際のデータにはGoogle Maps APIが必要です。
+            オンボーディングで自宅と大学の最寄駅を設定してください。実際のデータにはGoogle Maps API等が必要です。
           </CardDescription>
         </CardContent>
       </Card>
@@ -107,7 +114,7 @@ export function TransitInformationWidget() {
       <CardHeader>
         <CardTitle className="text-xl font-headline text-primary flex items-center">
           <TransitIcon mode={transit.modeIcon} className="mr-3" />
-          大学への通勤
+          大学への通学
         </CardTitle>
         <CardDescription>経路：{transit.from} から {transit.to}</CardDescription>
       </CardHeader>
@@ -148,7 +155,7 @@ export function TransitInformationWidget() {
         </div>
 
         <p className="text-xs text-muted-foreground text-center pt-2">
-          交通データは例示です。ライブ情報のためにはAPIを設定してください。
+          交通データは例示です。ライブ情報のためにはAPI等を設定してください。
         </p>
       </CardContent>
     </Card>

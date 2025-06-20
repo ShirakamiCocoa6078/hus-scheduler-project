@@ -12,7 +12,7 @@ export function Header() {
         <Link href="/dashboard" className="flex items-center space-x-2" aria-label="ダッシュボードへ移動">
            <CalendarCheck className="h-7 w-7 text-primary" />
           <span className="font-headline text-2xl font-semibold text-primary sm:inline-block">
-            HUSスケジューラー
+            HUS-scheduler
           </span>
         </Link>
         <AuthButton />

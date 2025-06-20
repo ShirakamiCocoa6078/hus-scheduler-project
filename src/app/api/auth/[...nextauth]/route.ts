@@ -3,10 +3,41 @@ import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import type { NextAuthOptions, User as NextAuthUser } from "next-auth";
+import fs from "fs/promises";
+import path from "path";
 
-// Define a custom user type that includes id
+const tempDataPath = path.join(process.cwd(), "src", "lib", "tempData.json");
+
+interface StoredUser {
+  id: string;
+  name?: string | null;
+  email: string;
+  password?: string; // 開発用：平文パスワード、本番ではハッシュ化必須
+  image?: string | null;
+  onboardingData?: {
+    department?: string;
+    homeStation?: string;
+    universityStation?: string;
+    syncMoodle?: boolean;
+    completed?: boolean;
+  };
+}
+
+// カスタムユーザー型をインポートされた型と一致させる
 interface CustomUser extends NextAuthUser {
   id: string;
+  onboardingData?: StoredUser['onboardingData'];
+}
+
+
+async function getUsers(): Promise<StoredUser[]> {
+  try {
+    const data = await fs.readFile(tempDataPath, "utf-8");
+    return JSON.parse(data) as StoredUser[];
+  } catch (error) {
+    // ファイルが存在しない場合などは空の配列を返す
+    return [];
+  }
 }
 
 export const authOptions: NextAuthOptions = {
@@ -26,73 +57,108 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email: { label: "メールアドレス", type: "email", placeholder: "your-email@example.com" },
+        email: { label: "メールアドレス", type: "email" },
         password: { label: "パスワード", type: "password" },
       },
-      async authorize(credentials, req) {
-        if (credentials?.email === "1234567@stu.hus.ac.jp" && credentials?.password === "test1234") {
-          return { id: "test-user-001", name: "テストユーザー", email: "1234567@stu.hus.ac.jp", image: null } as CustomUser;
-        } else {
+      async authorize(credentials): Promise<CustomUser | null> {
+        if (!credentials?.email || !credentials?.password) {
           return null;
         }
+        const users = await getUsers();
+        const user = users.find(u => u.email === credentials.email);
+
+        if (user && user.password === credentials.password) { // 開発用：平文比較
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            image: user.image,
+            onboardingData: user.onboardingData,
+          } as CustomUser;
+        }
+        return null;
       },
     }),
   ],
   secret: process.env.NEXTAUTH_SECRET,
+  session: {
+    strategy: "jwt",
+  },
   callbacks: {
     async signIn({ user, account, profile }) {
       if (account?.provider === "google") {
         if (profile && 'email_verified' in profile && (profile as any).email_verified) {
           if (profile.email && profile.email.endsWith("@stu.hus.ac.jp")) {
+            // Googleサインイン時にtempData.jsonにユーザーを保存または更新
+            const users = await getUsers();
+            let existingUser = users.find(u => u.email === profile.email);
+            if (!existingUser) {
+              existingUser = {
+                id: user.id, // NextAuthが生成したIDを使用
+                email: profile.email,
+                name: profile.name,
+                image: (profile as any).picture,
+                onboardingData: { completed: false }
+              };
+              users.push(existingUser);
+            } else {
+              existingUser.name = profile.name ?? existingUser.name;
+              existingUser.image = (profile as any).picture ?? existingUser.image;
+            }
+            await fs.writeFile(tempDataPath, JSON.stringify(users, null, 2));
+            // userオブジェクトにオンボーディングデータを追加して authorize や jwt コールバックで使えるようにする
+            (user as CustomUser).onboardingData = existingUser.onboardingData;
             return true;
           } else {
             console.log("HUSドメイン不一致 (Google): ", profile.email);
-            // エラーメッセージはログインページで処理される
             return '/login?error=DomainMismatch'; 
           }
         }
         return false; 
       }
       if (account?.provider === "credentials") {
+        // 認証プロバイダのauthorize関数でユーザーは既に検証済み
         return !!user;
       }
       return false; 
     },
     async jwt({ token, user, account, profile }) {
-      if (user) {
-        token.id = user.id;
-        token.name = user.name;
-        token.email = user.email;
-        token.picture = user.image; 
-      }
+      // 初期サインイン時
+      if (account && user) {
+        token.id = user.id; // CredentialsProviderからのuser.idまたはGoogleからのuser.id
+        const customUser = user as CustomUser; // キャストしてonboardingDataにアクセス
+        token.onboardingData = customUser.onboardingData;
 
-      if (account?.provider === "google") {
-        if (account.access_token) {
-          token.accessToken = account.access_token;
-        }
-        if (profile) {
-          token.name = profile.name ?? token.name;
-          token.email = profile.email ?? token.email;
-          token.picture = (profile as any).picture ?? token.picture;
+        if (account.provider === "google" && profile) {
+          // Googleプロバイダの場合、最新のユーザー情報を取得
+          const users = await getUsers();
+          const dbUser = users.find(u => u.email === profile.email);
+          if (dbUser) {
+            token.id = dbUser.id; // DBのIDを優先
+            token.name = dbUser.name;
+            token.email = dbUser.email;
+            token.picture = dbUser.image;
+            token.onboardingData = dbUser.onboardingData;
+          }
         }
       }
       return token;
     },
     async session({ session, token }) {
-      if (token.accessToken) session.accessToken = token.accessToken as string;
-      if (token.id) session.user.id = token.id as string;
+      session.user.id = token.id as string;
+      session.user.name = token.name;
+      session.user.email = token.email;
+      session.user.image = token.picture as string | null | undefined;
+      session.user.onboardingData = token.onboardingData as CustomUser['onboardingData'];
       
-      if (token.name) session.user.name = token.name;
-      if (token.email) session.user.email = token.email;
-      if (token.picture) session.user.image = token.picture;
-      else session.user.image = null; 
-      
+      if (token.accessToken) {
+        session.accessToken = token.accessToken as string;
+      }
       return session;
     },
   },
   pages: {
     signIn: '/login',
-    // error: '/auth/error', // カスタムエラーページ
   },
   debug: process.env.NODE_ENV !== 'production',
 };

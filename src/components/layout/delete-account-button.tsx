@@ -17,51 +17,63 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useOnboardingStatus } from "@/hooks/use-onboarding-status";
+// useOnboardingStatus はここでは直接不要かもしれませんが、クリア処理のために残しておきます。
+// ただし、実際のオンボーディング状態はセッション由来になります。
 
 export function DeleteAccountButton() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const { toast } = useToast();
-  const { setOnboardedStatus } = useOnboardingStatus();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isAlertDialogOpen, setIsAlertDialogOpen] = useState(false);
 
   const handleDeleteAccount = async () => {
-    if (!session) return;
+    if (!session || status !== "authenticated") {
+        toast({
+            title: "エラー",
+            description: "アカウント情報を削除するにはログインしている必要があります。",
+            variant: "destructive",
+        });
+        return;
+    }
 
     setIsDeleting(true);
     try {
-      // Simulate backend deletion if needed
-      // For now, clear client-side data and sign out
+      // バックエンドにアカウント削除リクエストを送信
+      const response = await fetch('/api/delete-account', {
+        method: 'DELETE',
+      });
 
-      // Clear all relevant localStorage items
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('hus_scheduler_onboarded');
-        localStorage.removeItem('user_department');
-        localStorage.removeItem('user_home_station');
-        localStorage.removeItem('user_university_station');
-        localStorage.removeItem('user_sync_moodle');
-        // Add any other keys specific to your app
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "アカウントの削除に失敗しました。");
       }
-      setOnboardedStatus(false); // Update onboarding hook state
 
-      await signOut({ redirect: false }); // Sign out without immediate redirect
+      // クライアント側のlocalStorageクリア（補助的）
+      // 主要なデータはサーバー側で削除されるべき
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('hus_scheduler_onboarded'); // 古いキーも一応削除
+        // 他のアプリ固有のlocalStorage項目があればここに追加
+      }
+      
+      // NextAuthセッションからサインアウト
+      await signOut({ redirect: false }); 
 
       toast({
         title: "アカウント削除成功",
         description: "アカウント情報が削除されました。ログインページにリダイレクトします。",
       });
 
-      // Wait a bit for toast to show, then redirect
+      // 少し待ってからリダイレクト（トースト表示のため）
       setTimeout(() => {
         window.location.href = "/login";
       }, 2000);
 
     } catch (error) {
       console.error("アカウント削除エラー:", error);
+      const message = error instanceof Error ? error.message : "アカウントの削除中にエラーが発生しました。";
       toast({
         title: "アカウント削除失敗",
-        description: "アカウントの削除中にエラーが発生しました。もう一度お試しください。",
+        description: `${message} もう一度お試しください。`,
         variant: "destructive",
       });
     } finally {
@@ -70,8 +82,8 @@ export function DeleteAccountButton() {
     }
   };
 
-  if (!session) {
-    return null; // Don't show button if not logged in
+  if (status !== "authenticated") {
+    return null; // ログインしていない場合はボタンを表示しない
   }
 
   return (
@@ -90,7 +102,7 @@ export function DeleteAccountButton() {
         <AlertDialogHeader>
           <AlertDialogTitle>アカウント削除の確認</AlertDialogTitle>
           <AlertDialogDescription>
-            アカウントを削除すると、関連するすべてのデータが消去されます。この操作は元に戻せません。本当に続行しますか？
+            アカウントを削除すると、関連するすべてのデータがサーバーから消去されます。この操作は元に戻せません。本当に続行しますか？
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

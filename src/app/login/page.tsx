@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertTriangle, Mail, KeyRound, LogIn, UserPlus } from "lucide-react";
+import { Loader2, AlertTriangle, Mail, KeyRound, LogIn, UserPlus, Settings } from "lucide-react";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
@@ -27,18 +27,28 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
-  const [isLoading, setIsLoading] = useState(false); // General loading for page state
+  const [isLoading, setIsLoading] = useState(false); 
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isCredentialsLoading, setIsCredentialsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const [email, setEmail] = useState("1234567@stu.hus.ac.jp");
-  const [password, setPassword] = useState("test1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showLoginForm, setShowLoginForm] = useState(false);
 
   useEffect(() => {
     const nextAuthError = searchParams.get("error");
+    const signupSuccess = searchParams.get("signupSuccess");
+
+    if (signupSuccess) {
+      toast({
+        title: "登録成功",
+        description: "アカウントが作成されました。ログインしてください。",
+      });
+      router.replace('/login', { scroll: false }); // クエリパラメータを削除
+    }
+
     if (nextAuthError) {
       let errorMessage = "ログイン中に不明なエラーが発生しました。もう一度お試しください。";
       if (nextAuthError === "OAuthAccountNotLinked") {
@@ -69,9 +79,10 @@ export default function LoginPage() {
     setIsGoogleLoading(true);
     setError(null);
     try {
+      // Googleサインイン成功時のリダイレクト先を "/" (InitialRedirectPage) に変更
       const res = await signIn("google", { callbackUrl: "/", redirect: true });
       if (res?.error) {
-          const errMessage = res.error === "Callback" ? "ログインがキャンセルされたか失敗しました。もう一度お試しください。" : res.error;
+          const errMessage = res.error === "Callback" ? "ログインがキャンセルされたか失敗しました。もう一度お試しください。" : "Googleログインに失敗しました。HUS大学のGoogleアカウント(@stu.hus.ac.jp)を使用してください。";
           setError(errMessage);
           toast({ title: "ログイン失敗", description: errMessage, variant: "destructive" });
           setIsGoogleLoading(false);
@@ -90,10 +101,10 @@ export default function LoginPage() {
     setError(null);
     try {
       const result = await signIn("credentials", {
-        redirect: false,
+        redirect: false, // リダイレクトはuseEffectで処理
         email,
         password,
-        callbackUrl: "/",
+        callbackUrl: "/", // 成功時のリダイレクト先
       });
 
       if (result?.error) {
@@ -107,7 +118,8 @@ export default function LoginPage() {
           variant: "destructive",
         });
       } else if (result?.ok) {
-        // Success, useEffect will handle redirect
+        // 成功、useEffectがリダイレクトを処理します
+        // router.replace("/"); // 明示的なリダイレクトはuseEffectに任せる
       } else {
         setError("ログイン中に予期せぬ問題が発生しました。もう一度お試しください。");
         toast({ title: "ログインエラー", description: "予期せぬ問題が発生しました。もう一度お試しください。", variant: "destructive" });
@@ -141,7 +153,7 @@ export default function LoginPage() {
           <div className="inline-block p-3 bg-primary rounded-full mb-4 mx-auto">
             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary-foreground))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-calendar-check"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
           </div>
-          <CardTitle className="text-3xl font-headline text-primary">HUSスケジューラー</CardTitle>
+          <CardTitle className="text-3xl font-headline text-primary">HUS-scheduler</CardTitle>
           <CardDescription className="text-muted-foreground">
             サインインして大学生活を管理しましょう。
           </CardDescription>
@@ -175,6 +187,12 @@ export default function LoginPage() {
               >
                 <UserPlus className="mr-2 h-5 w-5" />
                 <span>新規登録</span>
+              </Button>
+              <Button variant="link" asChild className="text-xs text-muted-foreground">
+                <Link href="/dev-admin">
+                  <Settings className="mr-1 h-3 w-3" />
+                  開発者用管理ページ
+                </Link>
               </Button>
             </div>
           )}
@@ -214,7 +232,7 @@ export default function LoginPage() {
                     <Input 
                       id="email" 
                       type="email" 
-                      placeholder="1234567@stu.hus.ac.jp" 
+                      placeholder="例：s1234567@stu.hus.ac.jp" 
                       value={email} 
                       onChange={(e) => setEmail(e.target.value)} 
                       required 
@@ -248,7 +266,7 @@ export default function LoginPage() {
                   {isCredentialsLoading ? (
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   ) : (
-                    <Mail className="mr-2 h-5 w-5" />
+                    <LogIn className="mr-2 h-5 w-5" />
                   )}
                   メールアドレスでサインイン
                 </Button>

@@ -1,10 +1,11 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'HUSスケジューラー',
+  title: 'HUS-scheduler', // タイトルを英語に変更
   description: '北海道科学大学の学生向けスケジュール・タスク管理アプリ。',
 };
 

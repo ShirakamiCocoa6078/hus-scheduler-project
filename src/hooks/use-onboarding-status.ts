@@ -1,42 +1,31 @@
+
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
-
-const ONBOARDING_KEY = 'hus_scheduler_onboarded';
+import { useSession } from "next-auth/react";
+import { useState, useEffect } from 'react';
 
 export function useOnboardingStatus() {
-  const [isOnboarded, setIsOnboarded] = useState<boolean>(false); // Default to false
+  const { data: session, status: authStatus } = useSession();
+  const [isOnboarded, setIsOnboarded] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Ensure this runs only on the client
-    if (typeof window !== 'undefined') {
-      try {
-        const storedValue = localStorage.getItem(ONBOARDING_KEY);
-        setIsOnboarded(storedValue === 'true');
-      } catch (error) {
-        console.error("Failed to read onboarding status from localStorage", error);
-        setIsOnboarded(false); 
-      } finally {
-        setIsLoading(false);
-      }
+    if (authStatus === "loading") {
+      setIsLoading(true);
+      return;
+    }
+
+    if (authStatus === "authenticated" && session?.user?.onboardingData) {
+      setIsOnboarded(session.user.onboardingData.completed === true);
     } else {
-        // For server-side rendering or initial static generation, assume loading and not onboarded
-        setIsLoading(false); // Or true if you want to show loading until client hydration
-        setIsOnboarded(false);
+      setIsOnboarded(false);
     }
-  }, []);
+    setIsLoading(false);
+  }, [session, authStatus]);
 
-  const setOnboardedStatus = useCallback((status: boolean) => {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(ONBOARDING_KEY, String(status));
-        setIsOnboarded(status);
-      } catch (error) {
-        console.error("Failed to write onboarding status to localStorage", error);
-      }
-    }
-  }, []);
+  // setOnboardedStatus は外部から直接呼び出されず、セッションの更新によって状態が変化するため、
+  // このフックからは削除するか、または何もしない関数として残すことができます。
+  // ここでは、状態がセッションに由来することを明確にするため、セッターは提供しません。
 
-  return { isOnboarded, setOnboardedStatus, isLoading };
+  return { isOnboarded, isLoading };
 }
