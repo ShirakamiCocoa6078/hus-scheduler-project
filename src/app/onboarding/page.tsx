@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Settings2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { DeleteAccountButton } from "@/components/layout/delete-account-button";
+import { FloatingActionButtons } from "@/components/layout/floating-action-buttons"; // Changed import
 
 export default function OnboardingPage() {
   const { data: session, status: authStatus, update: updateSession } = useSession();
@@ -49,7 +49,6 @@ export default function OnboardingPage() {
     if (authStatus === "unauthenticated") {
       router.replace("/login");
     } else if (authStatus === "authenticated" && isOnboarded) {
-      // オンボーディング済みならダッシュボードへ
       router.replace("/dashboard");
     }
   }, [isClientRendered, authStatus, isOnboarded, isOnboardingLoading, router]);
@@ -72,7 +71,6 @@ export default function OnboardingPage() {
         throw new Error(errorData.message || "オンボーディング情報の更新に失敗しました。");
       }
       
-      // セッション情報を更新して、クライアント側の状態を最新にする
       await updateSession();
 
       toast({
@@ -101,7 +99,6 @@ export default function OnboardingPage() {
     );
   }
 
-  // すでにオンボーディング済みの場合（セッションから判断）、または未認証の場合は何も表示しない（useEffectがリダイレクト処理）
   if (authStatus === "unauthenticated" || (authStatus === "authenticated" && isOnboarded && !isSubmitting) ) {
      return null; 
   }
@@ -187,7 +184,7 @@ export default function OnboardingPage() {
         </CardContent>
       </Card>
       <div className="mt-8">
-         <DeleteAccountButton />
+         <FloatingActionButtons /> {/* Changed component */}
       </div>
     </div>
   );
