@@ -6,13 +6,12 @@ import type { NextAuthOptions, User as NextAuthUser } from "next-auth";
 import fs from "fs/promises";
 import path from "path";
 
-const googleClientId = process.env.GOOGLE_CLIENT_ID;
-const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
-
-if (!googleClientId) {
+// Check for environment variables at the start.
+// This ensures the server fails fast if they are not configured.
+if (!process.env.GOOGLE_CLIENT_ID) {
   throw new Error("GOOGLE_CLIENT_ID is not set. Please check your .env.local file.");
 }
-if (!googleClientSecret) {
+if (!process.env.GOOGLE_CLIENT_SECRET) {
   throw new Error("GOOGLE_CLIENT_SECRET is not set. Please check your .env.local file.");
 }
 
@@ -54,8 +53,9 @@ async function getUsers(): Promise<StoredUser[]> {
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
-      clientId: googleClientId,
-      clientSecret: googleClientSecret,
+      // Use environment variables directly to ensure the latest values are used.
+      clientId: process.env.GOOGLE_CLIENT_ID as string,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
       authorization: {
         params: {
           prompt: "consent",
