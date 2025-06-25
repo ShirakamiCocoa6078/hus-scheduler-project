@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, RefreshCcw } from "lucide-react";
 import Link from "next/link";
+import { Label } from "@/components/ui/label";
 
 interface User {
   id: string;
