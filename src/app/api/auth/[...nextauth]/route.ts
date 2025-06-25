@@ -9,10 +9,10 @@ import path from "path";
 // Check for environment variables at the start.
 // This ensures the server fails fast if they are not configured.
 if (!process.env.GOOGLE_CLIENT_ID) {
-  throw new Error("GOOGLE_CLIENT_ID is not set. Please check your .env.local file.");
+  throw new Error("GOOGLE_CLIENT_ID is not set. Please check your environment variables.");
 }
 if (!process.env.GOOGLE_CLIENT_SECRET) {
-  throw new Error("GOOGLE_CLIENT_SECRET is not set. Please check your .env.local file.");
+  throw new Error("GOOGLE_CLIENT_SECRET is not set. Please check your environment variables.");
 }
 
 
