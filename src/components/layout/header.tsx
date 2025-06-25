@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { AuthButton } from "@/components/auth/auth-button";
 import { CalendarCheck } from "lucide-react";
+import { ThemeToggleButton } from "@/components/layout/theme-toggle-button";
 
 export function Header() {
   return (
@@ -15,7 +16,10 @@ export function Header() {
             HUS-scheduler
           </span>
         </Link>
-        <AuthButton />
+        <div className="flex items-center space-x-2">
+          <ThemeToggleButton />
+          <AuthButton />
+        </div>
       </div>
     </header>
   );
