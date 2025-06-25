@@ -115,11 +115,15 @@ export const authOptions: NextAuthOptions = {
               existingUser.name = profile.name ?? existingUser.name;
               existingUser.image = (profile as any).picture ?? existingUser.image;
             }
-            try {
-              await fs.writeFile(tempDataPath, JSON.stringify(users, null, 2));
-            } catch (error) {
-              console.warn("Failed to write to tempData.json on signIn. This is expected in a serverless environment.", error);
-            }
+            
+            // NOTE: This is commented out to prevent crashes in read-only filesystems (like Vercel).
+            // User data will be in-memory for the session but not persisted on Google Sign-In.
+            // try {
+            //   await fs.writeFile(tempDataPath, JSON.stringify(users, null, 2));
+            // } catch (error) {
+            //   console.warn("Failed to write to tempData.json on signIn. This is expected in a serverless environment.", error);
+            // }
+
             // userオブジェクトにオンボーディングデータを追加して authorize や jwt コールバックで使えるようにする
             (user as CustomUser).onboardingData = existingUser.onboardingData;
             return true;
