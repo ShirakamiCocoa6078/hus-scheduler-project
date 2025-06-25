@@ -6,6 +6,17 @@ import type { NextAuthOptions, User as NextAuthUser } from "next-auth";
 import fs from "fs/promises";
 import path from "path";
 
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+if (!googleClientId) {
+  throw new Error("GOOGLE_CLIENT_ID is not set. Please check your .env.local file.");
+}
+if (!googleClientSecret) {
+  throw new Error("GOOGLE_CLIENT_SECRET is not set. Please check your .env.local file.");
+}
+
+
 const tempDataPath = path.join(process.cwd(), "src", "lib", "tempData.json");
 
 interface StoredUser {
@@ -43,8 +54,8 @@ async function getUsers(): Promise<StoredUser[]> {
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID as string,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      clientId: googleClientId,
+      clientSecret: googleClientSecret,
       authorization: {
         params: {
           prompt: "consent",
