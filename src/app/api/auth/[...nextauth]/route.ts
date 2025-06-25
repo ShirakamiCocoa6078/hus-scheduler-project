@@ -123,26 +123,27 @@ export const authOptions: NextAuthOptions = {
       return false; 
     },
     async jwt({ token, user, account, profile }) {
-      // 初期サインイン時
-      if (account && user) {
-        token.id = user.id; // CredentialsProviderからのuser.idまたはGoogleからのuser.id
-        const customUser = user as CustomUser; // キャストしてonboardingDataにアクセス
-        token.onboardingData = customUser.onboardingData;
-
-        if (account.provider === "google" && profile) {
-          // Googleプロバイダの場合、最新のユーザー情報を取得
-          const users = await getUsers();
-          const dbUser = users.find(u => u.email === profile.email);
-          if (dbUser) {
-            token.id = dbUser.id; // DBのIDを優先
-            token.name = dbUser.name;
-            token.email = dbUser.email;
-            token.picture = dbUser.image;
-            token.onboardingData = dbUser.onboardingData;
-          }
+        // 初期サインイン時には`user`オブジェクトが存在します。
+        // これを使ってトークンを初期化します。
+        if (user) {
+            token.id = user.id;
+            token.onboardingData = (user as CustomUser).onboardingData;
         }
-      }
-      return token;
+
+        // セッションが要求されるたびに、DB（tempData.json）から最新のユーザー情報を取得してトークンを更新します。
+        // これにより、オンボーディング完了などの状態変化が即座にセッションに反映されるようになります。
+        if (token.email) {
+            const users = await getUsers();
+            const dbUser = users.find(u => u.email === token.email);
+            if (dbUser) {
+                token.id = dbUser.id;
+                token.name = dbUser.name;
+                token.picture = dbUser.image;
+                token.onboardingData = dbUser.onboardingData;
+            }
+        }
+        
+        return token;
     },
     async session({ session, token }) {
       session.user.id = token.id as string;
