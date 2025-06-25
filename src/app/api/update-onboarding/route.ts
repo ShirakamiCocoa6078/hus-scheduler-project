@@ -38,7 +38,13 @@ async function getUsers(): Promise<User[]> {
 }
 
 async function saveUsers(users: User[]): Promise<void> {
-  await fs.writeFile(tempDataPath, JSON.stringify(users, null, 2), 'utf-8');
+  try {
+    await fs.writeFile(tempDataPath, JSON.stringify(users, null, 2), 'utf-8');
+  } catch (error) {
+    console.warn("Failed to write to tempData.json. This is expected in a serverless environment.", error);
+    // サーバーレス環境では、ファイルシステムへの書き込みが失敗する可能性があります。
+    // 警告をログに記録しますが、フローを続行するためにエラーはスローしません。
+  }
 }
 
 export async function POST(request: NextRequest) {

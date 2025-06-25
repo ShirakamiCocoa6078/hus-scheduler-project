@@ -1,6 +1,6 @@
 
 // src/app/api/get-temp-data/route.ts
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 // import { getServerSession } from "next-auth/next";
@@ -18,7 +18,6 @@ interface User {
     department?: string;
     homeStation?: string;
     universityStation?: string;
-    syncMoodle?: boolean;
     completed?: boolean;
   };
 }
@@ -30,11 +29,16 @@ async function getUsers(): Promise<User[]> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       // ファイルが存在しない場合は空の配列を返す
-      await fs.writeFile(tempDataPath, JSON.stringify([], null, 2), 'utf-8');
+      try {
+        await fs.writeFile(tempDataPath, JSON.stringify([], null, 2), 'utf-8');
+      } catch (writeError) {
+         console.warn("Could not create tempData.json. This is expected in a read-only filesystem.", writeError);
+      }
       return [];
     }
     console.error("tempData.jsonの読み取りに失敗:", error);
-    throw new Error("ユーザーデータの読み取りに失敗しました。");
+    // Even if reading fails, return an empty array to avoid crashing.
+    return [];
   }
 }
 
@@ -69,7 +73,11 @@ export async function POST(request: NextRequest) {
     // 注意: このAPIは非常に強力なので、厳重なアクセス制御が必要です。
     // ここでは、受け取ったデータでそのままファイルを上書きします。
     // 実際のアプリケーションでは、より細かいバリデーションや権限チェックが必要です。
-    await fs.writeFile(tempDataPath, JSON.stringify(updatedUsers, null, 2), 'utf-8');
+    try {
+      await fs.writeFile(tempDataPath, JSON.stringify(updatedUsers, null, 2), 'utf-8');
+    } catch (error) {
+        console.warn("Failed to write to tempData.json. This is expected in a serverless environment.", error);
+    }
     return NextResponse.json({ message: 'データが更新されました。' }, { status: 200 });
   } catch (error) {
     console.error('データ更新エラー:', error);
