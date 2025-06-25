@@ -20,7 +20,6 @@ interface User {
     department?: string;
     homeStation?: string;
     universityStation?: string;
-    syncMoodle?: boolean;
     completed?: boolean;
   };
 }
@@ -171,7 +170,6 @@ export default function DevAdminPage() {
       "department": "学部",
       "homeStation": "最寄駅",
       "universityStation": "大学の最寄駅",
-      "syncMoodle": true/false,
       "completed": true/false // オンボーディング完了フラグ
     }
   },

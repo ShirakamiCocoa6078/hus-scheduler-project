@@ -10,10 +10,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Loader2, Settings2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { FloatingActionButtons } from "@/components/layout/floating-action-buttons"; // Changed import
+import { FloatingActionButtons } from "@/components/layout/floating-action-buttons";
 
 export default function OnboardingPage() {
   const { data: session, status: authStatus, update: updateSession } = useSession();
@@ -24,7 +23,6 @@ export default function OnboardingPage() {
   const [department, setDepartment] = useState(session?.user?.onboardingData?.department || "");
   const [homeStation, setHomeStation] = useState(session?.user?.onboardingData?.homeStation || "");
   const [universityStation, setUniversityStation] = useState(session?.user?.onboardingData?.universityStation || "");
-  const [syncMoodle, setSyncMoodle] = useState(session?.user?.onboardingData?.syncMoodle || false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isClientRendered, setIsClientRendered] = useState(false);
 
@@ -34,11 +32,10 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (session?.user?.onboardingData) {
-      const { department, homeStation, universityStation, syncMoodle } = session.user.onboardingData;
+      const { department, homeStation, universityStation } = session.user.onboardingData;
       if (department) setDepartment(department);
       if (homeStation) setHomeStation(homeStation);
       if (universityStation) setUniversityStation(universityStation);
-      if (syncMoodle !== undefined) setSyncMoodle(syncMoodle);
     }
   }, [session]);
 
@@ -57,7 +54,7 @@ export default function OnboardingPage() {
     e.preventDefault();
     setIsSubmitting(true);
     
-    const onboardingPayload = { department, homeStation, universityStation, syncMoodle };
+    const onboardingPayload = { department, homeStation, universityStation };
 
     try {
       const response = await fetch('/api/update-onboarding', {
@@ -156,20 +153,6 @@ export default function OnboardingPage() {
               />
             </div>
             
-            <div className="flex items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <Label htmlFor="syncMoodle" className="text-base font-medium">Moodleデータと同期</Label>
-                <p className="text-sm text-muted-foreground">
-                  Moodleから課題や締切を自動的にインポートします。(現在この機能はダミーです)
-                </p>
-              </div>
-              <Switch 
-                id="syncMoodle" 
-                checked={syncMoodle} 
-                onCheckedChange={setSyncMoodle}
-                aria-label="Moodleデータと同期"
-              />
-            </div>
             <CardFooter className="p-0 pt-4">
               <Button type="submit" className="w-full text-lg py-6" disabled={isSubmitting}>
                 {isSubmitting ? (
@@ -184,7 +167,7 @@ export default function OnboardingPage() {
         </CardContent>
       </Card>
       <div className="mt-8">
-         <FloatingActionButtons /> {/* Changed component */}
+         <FloatingActionButtons />
       </div>
     </div>
   );

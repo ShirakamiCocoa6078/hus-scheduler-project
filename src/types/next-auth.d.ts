@@ -7,7 +7,6 @@ interface OnboardingData {
   department?: string;
   homeStation?: string;
   universityStation?: string;
-  syncMoodle?: boolean;
   completed?: boolean;
 }
 

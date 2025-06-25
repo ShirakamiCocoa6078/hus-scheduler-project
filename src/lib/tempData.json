@@ -1,3 +1,4 @@
+
 [
   {
     "id": "1750838744819",
@@ -8,8 +9,7 @@
       "completed": true,
       "department": "",
       "homeStation": "test1",
-      "universityStation": "test2",
-      "syncMoodle": false
+      "universityStation": "test2"
     }
   }
 ]

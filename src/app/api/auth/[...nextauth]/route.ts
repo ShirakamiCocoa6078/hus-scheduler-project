@@ -28,7 +28,6 @@ interface StoredUser {
     department?: string;
     homeStation?: string;
     universityStation?: string;
-    syncMoodle?: boolean;
     completed?: boolean;
   };
 }
