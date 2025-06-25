@@ -1,2 +1,15 @@
-
-[]
+[
+  {
+    "id": "1750838744819",
+    "name": "黄仁星",
+    "email": "1256034@stu.hus.ac.jp",
+    "password": "Dlstjd5657@",
+    "onboardingData": {
+      "completed": true,
+      "department": "",
+      "homeStation": "test1",
+      "universityStation": "test2",
+      "syncMoodle": false
+    }
+  }
+]
