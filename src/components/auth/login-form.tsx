@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, AlertTriangle, LogIn, UserPlus, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
+import { ThemeToggleButton } from "@/components/layout/theme-toggle-button";
 
 const GoogleIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="24px" height="24px">
@@ -98,6 +99,9 @@ export function LoginForm() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-secondary p-4">
+      <div className="absolute top-4 right-4">
+        <ThemeToggleButton />
+      </div>
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center">
           <div className="inline-block p-3 bg-primary rounded-full mb-4 mx-auto">

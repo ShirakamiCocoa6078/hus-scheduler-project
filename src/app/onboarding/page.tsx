@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Settings2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { FloatingActionButtons } from "@/components/layout/floating-action-buttons";
+import { ThemeToggleButton } from "@/components/layout/theme-toggle-button";
 
 export default function OnboardingPage() {
   const { data: session, status: authStatus, update: updateSession } = useSession();
@@ -104,6 +105,9 @@ export default function OnboardingPage() {
   
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-background via-secondary to-background p-4 py-12">
+      <div className="absolute top-4 right-4">
+        <ThemeToggleButton />
+      </div>
       <Card className="w-full max-w-lg shadow-xl">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground">
