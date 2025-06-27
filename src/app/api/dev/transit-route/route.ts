@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
   }
 
   const isToSchool = !!arrivalTime;
-  const universityLocation = "홋카이도과학대학 버스 정류장";
+  const universityLocation = "北海道札幌市手稲区前田７条１５丁目４−１";
 
   const params = new URLSearchParams({
     mode: 'transit',
@@ -126,6 +126,7 @@ export async function POST(request: NextRequest) {
       params.set('departure_time', departureTimestamp);
     } else {
       debugLogs.push('[DEBUG] Using "now" for departure_time.');
+      params.set('departure_time', Math.floor(Date.now() / 1000).toString());
     }
   }
 
