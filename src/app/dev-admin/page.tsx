@@ -90,6 +90,9 @@ export default function DevAdminPage() {
   const [isCalculatingFromSchool, setIsCalculatingFromSchool] = useState(false);
   const [fromSchoolError, setFromSchoolError] = useState<string | null>(null);
   const [fromSchoolResponse, setFromSchoolResponse] = useState<any | null>(null);
+  
+  const threeMonthsFromNow = new Date();
+  threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -438,6 +441,8 @@ export default function DevAdminPage() {
                       selected={toSchoolDate}
                       onSelect={setToSchoolDate}
                       initialFocus
+                      fromDate={new Date()}
+                      toDate={threeMonthsFromNow}
                     />
                   </PopoverContent>
                 </Popover>

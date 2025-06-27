@@ -190,63 +190,62 @@ export async function POST(request: NextRequest) {
     const rawData = await apiResponse.json();
     debugLogs.push(`[DEBUG] Raw Google Maps API Response: ${JSON.stringify(rawData, null, 2)}`);
 
-    if (!apiResponse.ok || rawData.status !== "OK") {
-        const errorMessage = rawData.error_message || `API returned status: ${rawData.status}`;
-        const finalErrorMessage = `Failed to fetch transit route. ${errorMessage}`;
-        debugLogs.push(`[DEBUG] API Error: ${finalErrorMessage}`);
+    if (rawData.status === "OK" && rawData.routes.length > 0) {
+        if (isToSchool) {
+            let bestRoute = null;
+            let latestDepartureTimestamp = 0;
+
+            for (const route of rawData.routes) {
+                const currentDepartureTimestamp = route.legs[0].departure_time.value;
+                if (currentDepartureTimestamp > latestDepartureTimestamp) {
+                    latestDepartureTimestamp = currentDepartureTimestamp;
+                    bestRoute = route;
+                }
+            }
+            
+            if (!bestRoute) {
+                const message = "Could not determine the best route.";
+                debugLogs.push(`[DEBUG] ${message}`);
+                return NextResponse.json({ message, rawResponse: rawData, debugLogs }, { status: 404 });
+            }
+            
+            const leg = bestRoute.legs[0];
+            const formattedResult = {
+                latestDepartureTime: new Date(leg.departure_time.value * 1000).toISOString(),
+                finalArrivalTime: new Date(leg.arrival_time.value * 1000).toISOString(),
+                totalDuration: Math.round(leg.duration.value / 60),
+                steps: leg.steps.map(formatStep)
+            };
+            return NextResponse.json({ formattedRoute: formattedResult, rawResponse: rawData, debugLogs });
+
+        } else { // From school
+            const route = rawData.routes[0];
+            const leg = route.legs[0];
+            const formattedResult = {
+              totalDuration: Math.round(leg.duration.value / 60),
+              estimatedArrivalTime: new Date(leg.arrival_time.value * 1000).toISOString(),
+              steps: leg.steps.map(formatStep),
+            };
+            return NextResponse.json({ formattedRoute: formattedResult, rawResponse: rawData, debugLogs });
+        }
+    } else if (rawData.status === 'ZERO_RESULTS') {
+        const userMessage = "선택하신 날짜와 시간에는 이용 가능한 대중교통 경로를 찾을 수 없습니다. 다른 날짜나 시간으로 다시 시도해 주세요.";
+        debugLogs.push(`[DEBUG] API returned ZERO_RESULTS. Sending user-friendly message.`);
         return NextResponse.json({ 
-            message: finalErrorMessage,
-            rawResponse: rawData,
-            debugLogs
-        }, { status: apiResponse.status || 500 });
-    }
-    
-    if (rawData.routes.length === 0) {
-        const message = "No route found for the specified criteria.";
-        debugLogs.push(`[DEBUG] ${message}`);
-        return NextResponse.json({ 
-            message: message,
+            message: userMessage,
             rawResponse: rawData,
             debugLogs
         }, { status: 404 });
-    }
-
-    if (isToSchool) {
-        let bestRoute = null;
-        let latestDepartureTimestamp = 0;
-
-        for (const route of rawData.routes) {
-            const currentDepartureTimestamp = route.legs[0].departure_time.value;
-            if (currentDepartureTimestamp > latestDepartureTimestamp) {
-                latestDepartureTimestamp = currentDepartureTimestamp;
-                bestRoute = route;
-            }
-        }
-        
-        if (!bestRoute) {
-            const message = "Could not determine the best route.";
-            debugLogs.push(`[DEBUG] ${message}`);
-            return NextResponse.json({ message, rawResponse: rawData, debugLogs }, { status: 404 });
-        }
-        
-        const leg = bestRoute.legs[0];
-        const formattedResult = {
-            latestDepartureTime: new Date(leg.departure_time.value * 1000).toISOString(),
-            finalArrivalTime: new Date(leg.arrival_time.value * 1000).toISOString(),
-            totalDuration: Math.round(leg.duration.value / 60),
-            steps: leg.steps.map(formatStep)
-        };
-        return NextResponse.json({ formattedRoute: formattedResult, rawResponse: rawData, debugLogs });
-
-    } else { // From school
-        const route = rawData.routes[0];
-        const leg = route.legs[0];
-        const formattedResult = {
-          totalDuration: Math.round(leg.duration.value / 60),
-          estimatedArrivalTime: new Date(leg.arrival_time.value * 1000).toISOString(),
-          steps: leg.steps.map(formatStep),
-        };
-        return NextResponse.json({ formattedRoute: formattedResult, rawResponse: rawData, debugLogs });
+    } else {
+        const errorMessage = rawData.error_message || `API returned status: ${rawData.status}`;
+        const finalErrorMessage = "경로 탐색 중 오류가 발생했습니다.";
+        debugLogs.push(`[DEBUG] API Error: ${finalErrorMessage}. Details: ${errorMessage}`);
+        return NextResponse.json({ 
+            message: finalErrorMessage,
+            details: errorMessage,
+            rawResponse: rawData,
+            debugLogs
+        }, { status: 500 });
     }
 
   } catch (error) {
