@@ -44,10 +44,13 @@ function formatStep(step: any): TransitStep {
 
 
 export async function POST(request: NextRequest) {
-  const { origin, destination, departureTime, arrivalTime } = await request.json();
+  const body = await request.json();
+  console.log('[DEBUG] Received request body:', body);
+  const { origin, destination, departureTime, arrivalTime } = body;
   const apiKey = process.env.Maps_API_KEY;
 
   if (!apiKey) {
+    console.error('[DEBUG] Google Maps API key is not configured.');
     return NextResponse.json({ message: 'Google Maps API key is not configured.' }, { status: 500 });
   }
 
@@ -62,36 +65,47 @@ export async function POST(request: NextRequest) {
   });
 
   if (isToSchool) {
-    // "To School" (Arrive-By) logic
     if (!origin) {
       return NextResponse.json({ message: 'Origin address is required.' }, { status: 400 });
     }
     params.set('origin', origin);
     params.set('destination', universityLocation);
-    const arrivalTimestamp = Math.floor(new Date(arrivalTime).getTime() / 1000);
+    
+    console.log('[DEBUG] Original arrivalTime string:', arrivalTime);
+    const arrivalDate = new Date(arrivalTime);
+    console.log('[DEBUG] Parsed arrivalTime Date object:', arrivalDate.toISOString());
+    const arrivalTimestamp = Math.floor(arrivalDate.getTime() / 1000);
+    console.log('[DEBUG] Converted arrival_time timestamp:', arrivalTimestamp);
+    
     params.set('arrival_time', arrivalTimestamp.toString());
   } else {
-    // "From School" (Depart-Now) logic
     if (!destination) {
       return NextResponse.json({ message: 'Destination address is required.' }, { status: 400 });
     }
     params.set('origin', universityLocation);
     params.set('destination', destination);
-    // Use 'now' if departureTime is 'now' or not provided
+    
     if (departureTime && departureTime !== 'now') {
-      const departureTimestamp = Math.floor(new Date(departureTime).getTime() / 1000).toString();
+      console.log('[DEBUG] Original departureTime string:', departureTime);
+      const departureDate = new Date(departureTime);
+      console.log('[DEBUG] Parsed departureTime Date object:', departureDate.toISOString());
+      const departureTimestamp = Math.floor(departureDate.getTime() / 1000).toString();
+      console.log('[DEBUG] Converted departure_time timestamp:', departureTimestamp);
       params.set('departure_time', departureTimestamp);
+    } else {
+      console.log('[DEBUG] Using "now" for departure_time.');
     }
   }
 
   const apiUrl = `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`;
+  console.log('[DEBUG] Final Google Maps API URL:', apiUrl);
 
   try {
     const apiResponse = await fetch(apiUrl);
     const rawData = await apiResponse.json();
+    console.log('[DEBUG] Raw Google Maps API Response:', JSON.stringify(rawData, null, 2));
 
     if (!apiResponse.ok || rawData.status !== "OK") {
-      console.error("Google Maps API Error:", rawData);
       const errorMessage = rawData.error_message || `API returned status: ${rawData.status}`;
       return NextResponse.json({ 
         message: `Failed to fetch transit route. ${errorMessage}`,
@@ -107,7 +121,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (isToSchool) {
-        // 'Arrive By' logic: Find the route with the latest departure time
         let bestRoute = null;
         let latestDepartureTimestamp = 0;
 
@@ -133,7 +146,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ formattedRoute: formattedResult, rawResponse: rawData });
 
     } else {
-        // 'Depart At' logic: Use the first route provided by Google
         const route = rawData.routes[0];
         const leg = route.legs[0];
         const formattedResult = {
@@ -145,7 +157,7 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('Error calling Google Maps API:', error);
+    console.error('[DEBUG] Error calling Google Maps API:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown server error occurred.';
     return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
