@@ -44,36 +44,44 @@ function formatStep(step: any): TransitStep {
 
 
 export async function POST(request: NextRequest) {
-  const { origin, departureTime, arrivalTime } = await request.json();
+  const { origin, destination, departureTime, arrivalTime } = await request.json();
   const apiKey = process.env.Maps_API_KEY;
 
   if (!apiKey) {
     return NextResponse.json({ message: 'Google Maps API key is not configured.' }, { status: 500 });
   }
-  if (!origin) {
-    return NextResponse.json({ message: 'Origin address is required.' }, { status: 400 });
-  }
+
+  const isToSchool = !!arrivalTime;
+  const universityLocation = "홋카이도과학대학 버스 정류장";
 
   const params = new URLSearchParams({
-    origin: origin,
-    destination: "홋카이도과학대학 버스 정류장",
     mode: 'transit',
     language: 'ja',
     region: 'jp',
     key: apiKey,
   });
 
-  // Decide whether to use arrival_time or departure_time
-  if (arrivalTime) {
-    // 'Arrive By' logic
+  if (isToSchool) {
+    // "To School" (Arrive-By) logic
+    if (!origin) {
+      return NextResponse.json({ message: 'Origin address is required.' }, { status: 400 });
+    }
+    params.set('origin', origin);
+    params.set('destination', universityLocation);
     const arrivalTimestamp = Math.floor(new Date(arrivalTime).getTime() / 1000);
     params.set('arrival_time', arrivalTimestamp.toString());
   } else {
-    // 'Depart At' logic (the original functionality)
-    const departureTimestamp = (departureTime === 'now' || !departureTime)
-      ? 'now'
-      : Math.floor(new Date(departureTime).getTime() / 1000).toString();
-    params.set('departure_time', departureTimestamp);
+    // "From School" (Depart-Now) logic
+    if (!destination) {
+      return NextResponse.json({ message: 'Destination address is required.' }, { status: 400 });
+    }
+    params.set('origin', universityLocation);
+    params.set('destination', destination);
+    // Use 'now' if departureTime is 'now' or not provided
+    if (departureTime && departureTime !== 'now') {
+      const departureTimestamp = Math.floor(new Date(departureTime).getTime() / 1000).toString();
+      params.set('departure_time', departureTimestamp);
+    }
   }
 
   const apiUrl = `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`;
@@ -98,7 +106,7 @@ export async function POST(request: NextRequest) {
         }, { status: 404 });
     }
 
-    if (arrivalTime) {
+    if (isToSchool) {
         // 'Arrive By' logic: Find the route with the latest departure time
         let bestRoute = null;
         let latestDepartureTimestamp = 0;
@@ -125,7 +133,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ formattedRoute: formattedResult, rawResponse: rawData });
 
     } else {
-        // 'Depart At' logic: Use the first route provided
+        // 'Depart At' logic: Use the first route provided by Google
         const route = rawData.routes[0];
         const leg = route.legs[0];
         const formattedResult = {

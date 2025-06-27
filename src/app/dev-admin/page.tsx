@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, RefreshCcw, Database, ServerCrash, User as UserIcon, MoreVertical, Pencil, Archive, Trash2, TrainFront, AlertTriangle, Clock } from "lucide-react";
+import { Loader2, RefreshCcw, Database, ServerCrash, User as UserIcon, MoreVertical, Pencil, Archive, Trash2, TrainFront, AlertTriangle, Clock, Calendar as CalendarIcon, School, Home } from "lucide-react";
 import Link from "next/link";
 import {
   Table,
@@ -48,6 +48,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 
 // Represents a subset of the Prisma User model for display
@@ -72,24 +77,19 @@ export default function DevAdminPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editFormData, setEditFormData] = useState({ name: "", email: "" });
 
-  // State for "Depart At" test
-  const [departOrigin, setDepartOrigin] = useState("札幌市手稲区前田７条１５丁目４−１");
-  const [isCalculatingDepart, setIsCalculatingDepart] = useState(false);
-  const [departError, setDepartError] = useState<string | null>(null);
-  const [departResponse, setDepartResponse] = useState<{ formattedRoute: any; rawResponse: any } | null>(null);
+  // State for "To School" (등교) simulation
+  const [toSchoolOrigin, setToSchoolOrigin] = useState("札幌駅");
+  const [toSchoolDate, setToSchoolDate] = useState<Date | undefined>(new Date());
+  const [toSchoolPeriod, setToSchoolPeriod] = useState("1"); // 1교시
+  const [isCalculatingToSchool, setIsCalculatingToSchool] = useState(false);
+  const [toSchoolError, setToSchoolError] = useState<string | null>(null);
+  const [toSchoolResponse, setToSchoolResponse] = useState<any | null>(null);
 
-  // State for "Arrive By" test
-  const [arrivalOrigin, setArrivalOrigin] = useState("札幌駅");
-  const [arrivalDeadline, setArrivalDeadline] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    d.setHours(9, 0, 0, 0);
-    return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
-  });
-  const [isCalculatingArrival, setIsCalculatingArrival] = useState(false);
-  const [arrivalError, setArrivalError] = useState<string | null>(null);
-  const [arrivalResponse, setArrivalResponse] = useState<{ formattedRoute: any; rawResponse: any } | null>(null);
-
+  // State for "From School" (귀가) simulation
+  const [fromSchoolDest, setFromSchoolDest] = useState("札幌駅");
+  const [isCalculatingFromSchool, setIsCalculatingFromSchool] = useState(false);
+  const [fromSchoolError, setFromSchoolError] = useState<string | null>(null);
+  const [fromSchoolResponse, setFromSchoolResponse] = useState<any | null>(null);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -197,59 +197,78 @@ export default function DevAdminPage() {
     }
   };
   
-  const handleCalculateDepartAt = async () => {
-    setIsCalculatingDepart(true);
-    setDepartError(null);
-    setDepartResponse(null);
+  const handleCalculateToSchool = async () => {
+    setIsCalculatingToSchool(true);
+    setToSchoolError(null);
+    setToSchoolResponse(null);
+
+    if (!toSchoolDate) {
+      const msg = "Please select a date.";
+      setToSchoolError(msg);
+      toast({ title: "Error", description: msg, variant: "destructive" });
+      setIsCalculatingToSchool(false);
+      return;
+    }
+
+    const periodTimes: { [key: string]: { hour: number; minute: number } } = {
+      '1': { hour: 9, minute: 0 },
+      '2': { hour: 10, minute: 30 },
+      '3': { hour: 13, minute: 0 },
+      '4': { hour: 14, minute: 40 },
+      '5': { hour: 16, minute: 20 },
+    };
+    const { hour, minute } = periodTimes[toSchoolPeriod as keyof typeof periodTimes];
+    
+    const arrivalDeadline = new Date(toSchoolDate);
+    arrivalDeadline.setHours(hour, minute, 0, 0);
+
     try {
       const response = await fetch('/api/dev/transit-route', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ origin: departOrigin, departureTime: 'now' }),
+        body: JSON.stringify({
+          origin: toSchoolOrigin,
+          arrivalTime: arrivalDeadline.toISOString(),
+        }),
       });
-
       const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.message || 'Failed to calculate route.');
       }
-      
-      setDepartResponse(data);
-
+      setToSchoolResponse(data);
     } catch (err) {
       const message = err instanceof Error ? err.message : "An unknown error occurred.";
-      setDepartError(message);
+      setToSchoolError(message);
       toast({ title: "Transit API Error", description: message, variant: 'destructive' });
     } finally {
-      setIsCalculatingDepart(false);
+      setIsCalculatingToSchool(false);
     }
   };
   
-  const handleCalculateArriveBy = async () => {
-    setIsCalculatingArrival(true);
-    setArrivalError(null);
-    setArrivalResponse(null);
+  const handleCalculateFromSchool = async () => {
+    setIsCalculatingFromSchool(true);
+    setFromSchoolError(null);
+    setFromSchoolResponse(null);
     try {
       const response = await fetch('/api/dev/transit-route', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ origin: arrivalOrigin, arrivalTime: arrivalDeadline }),
+        body: JSON.stringify({
+          destination: fromSchoolDest,
+          departureTime: 'now',
+        }),
       });
-      
       const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to calculate arrival route.');
+        throw new Error(data.message || 'Failed to calculate route.');
       }
-      
-      setArrivalResponse(data);
-
+      setFromSchoolResponse(data);
     } catch (err) {
       const message = err instanceof Error ? err.message : "An unknown error occurred.";
-      setArrivalError(message);
+      setFromSchoolError(message);
       toast({ title: "Transit API Error", description: message, variant: 'destructive' });
     } finally {
-      setIsCalculatingArrival(false);
+      setIsCalculatingFromSchool(false);
     }
   };
 
@@ -366,41 +385,83 @@ export default function DevAdminPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-xl font-bold text-primary flex items-center">
-              <TrainFront className="mr-3 h-6 w-6" />
-              Test: Depart Now
+              <School className="mr-3 h-6 w-6" />
+              등교 시뮬레이션 (Arrive-By)
             </CardTitle>
             <CardDescription>
-              Test the Google Maps Directions API for calculating a route departing now.
+              특정 교시까지 학교에 도착하기 위한 최신 출발 시간을 계산합니다.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="depart-origin">Origin Address</Label>
+              <Label htmlFor="to-school-origin">출발지</Label>
               <Input 
-                id="depart-origin"
-                value={departOrigin}
-                onChange={(e) => setDepartOrigin(e.target.value)}
-                placeholder="e.g., 札幌市手稲区前田７条１５丁目４−１"
+                id="to-school-origin"
+                value={toSchoolOrigin}
+                onChange={(e) => setToSchoolOrigin(e.target.value)}
+                placeholder="예: 札幌駅"
               />
             </div>
-            <Button onClick={handleCalculateDepartAt} disabled={isCalculatingDepart}>
-              {isCalculatingDepart && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Calculate Route
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="to-school-date">목표 날짜</Label>
+                 <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !toSchoolDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {toSchoolDate ? format(toSchoolDate, "PPP") : <span>날짜 선택</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={toSchoolDate}
+                      onSelect={setToSchoolDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="to-school-period">목표 교시</Label>
+                <Select value={toSchoolPeriod} onValueChange={setToSchoolPeriod}>
+                  <SelectTrigger id="to-school-period">
+                    <SelectValue placeholder="교시 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1교시 (09:00)</SelectItem>
+                    <SelectItem value="2">2교시 (10:30)</SelectItem>
+                    <SelectItem value="3">3교시 (13:00)</SelectItem>
+                    <SelectItem value="4">4교시 (14:40)</SelectItem>
+                    <SelectItem value="5">5교시 (16:20)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button onClick={handleCalculateToSchool} disabled={isCalculatingToSchool} className="w-full">
+              {isCalculatingToSchool && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              최신 출발 시간 계산
             </Button>
-            {departError && (
+            {toSchoolError && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{departError}</AlertDescription>
+                <AlertTitle>에러</AlertTitle>
+                <AlertDescription>{toSchoolError}</AlertDescription>
               </Alert>
             )}
-            {departResponse && (
+            {toSchoolResponse && (
               <Accordion type="single" collapsible className="w-full mt-4">
                 <AccordionItem value="formatted">
                   <AccordionTrigger>Formatted Route Output</AccordionTrigger>
                   <AccordionContent>
                     <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
-                      <code>{JSON.stringify(departResponse.formattedRoute, null, 2)}</code>
+                      <code>{JSON.stringify(toSchoolResponse.formattedRoute, null, 2)}</code>
                     </pre>
                   </AccordionContent>
                 </AccordionItem>
@@ -408,7 +469,7 @@ export default function DevAdminPage() {
                   <AccordionTrigger>Raw Google Maps API Response</AccordionTrigger>
                   <AccordionContent>
                     <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
-                      <code>{JSON.stringify(departResponse.rawResponse, null, 2)}</code>
+                      <code>{JSON.stringify(toSchoolResponse.rawResponse, null, 2)}</code>
                     </pre>
                   </AccordionContent>
                 </AccordionItem>
@@ -420,50 +481,41 @@ export default function DevAdminPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-xl font-bold text-primary flex items-center">
-              <Clock className="mr-3 h-6 w-6" />
-              Test: Arrive By Deadline
+              <Home className="mr-3 h-6 w-6" />
+              귀가 시뮬레이션 (Depart-Now)
             </CardTitle>
             <CardDescription>
-              Find the latest departure to arrive at HUS by a specific time.
+              현재 시각에 학교에서 출발하는 가장 빠른 경로를 계산합니다.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="arrival-origin">Origin Address</Label>
+              <Label htmlFor="from-school-dest">도착지</Label>
               <Input 
-                id="arrival-origin"
-                value={arrivalOrigin}
-                onChange={(e) => setArrivalOrigin(e.target.value)}
-                placeholder="e.g., 札幌駅"
+                id="from-school-dest"
+                value={fromSchoolDest}
+                onChange={(e) => setFromSchoolDest(e.target.value)}
+                placeholder="예: 札幌駅"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="arrival-deadline">Arrival Deadline</Label>
-              <Input 
-                id="arrival-deadline"
-                type="datetime-local"
-                value={arrivalDeadline}
-                onChange={(e) => setArrivalDeadline(e.target.value)}
-              />
-            </div>
-            <Button onClick={handleCalculateArriveBy} disabled={isCalculatingArrival}>
-              {isCalculatingArrival && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Find Latest Departure
+            <Button onClick={handleCalculateFromSchool} disabled={isCalculatingFromSchool} className="w-full">
+              {isCalculatingFromSchool && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              현재 시간으로 경로 계산
             </Button>
-            {arrivalError && (
+            {fromSchoolError && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{arrivalError}</AlertDescription>
+                <AlertTitle>에러</AlertTitle>
+                <AlertDescription>{fromSchoolError}</AlertDescription>
               </Alert>
             )}
-            {arrivalResponse && (
+            {fromSchoolResponse && (
               <Accordion type="single" collapsible className="w-full mt-4">
                 <AccordionItem value="formatted-arrival">
                   <AccordionTrigger>Formatted Route Output</AccordionTrigger>
                   <AccordionContent>
                     <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
-                      <code>{JSON.stringify(arrivalResponse.formattedRoute, null, 2)}</code>
+                      <code>{JSON.stringify(fromSchoolResponse.formattedRoute, null, 2)}</code>
                     </pre>
                   </AccordionContent>
                 </AccordionItem>
@@ -471,7 +523,7 @@ export default function DevAdminPage() {
                   <AccordionTrigger>Raw Google Maps API Response</AccordionTrigger>
                   <AccordionContent>
                     <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
-                      <code>{JSON.stringify(arrivalResponse.rawResponse, null, 2)}</code>
+                      <code>{JSON.stringify(fromSchoolResponse.rawResponse, null, 2)}</code>
                     </pre>
                   </AccordionContent>
                 </AccordionItem>
@@ -485,9 +537,9 @@ export default function DevAdminPage() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>ユーザー編集</DialogTitle>
+            <DialogTitle>사용자 편집</DialogTitle>
             <DialogDescription>
-              {selectedUser?.name} のプロフィール情報を変更します。クリックして保存してください。
+              {selectedUser?.name} 의 프로필 정보를 변경합니다. 클릭해서 저장해주세요.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -515,10 +567,10 @@ export default function DevAdminPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>キャンセル</Button>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>취소</Button>
             <Button onClick={handleUpdateUser} disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              変更を保存
+              변경 사항 저장
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -528,13 +580,13 @@ export default function DevAdminPage() {
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>本当に削除しますか？</AlertDialogTitle>
+            <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
             <AlertDialogDescription>
-              この操作は元に戻せません。ユーザー「{selectedUser?.name}」を完全に削除します。
+              이 작업은 되돌릴 수 없습니다. 사용자 '{selectedUser?.name}'을(를) 영구적으로 삭제합니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setIsSubmitting(false)} disabled={isSubmitting}>キャンセル</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setIsSubmitting(false)} disabled={isSubmitting}>취소</AlertDialogCancel>
             <Button
               variant="destructive"
               onClick={handleConfirmDelete}
@@ -545,7 +597,7 @@ export default function DevAdminPage() {
               ) : (
                 <Trash2 className="mr-2 h-4 w-4" />
               )}
-              削除
+              삭제
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
