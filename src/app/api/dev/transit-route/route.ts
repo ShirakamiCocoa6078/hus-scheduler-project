@@ -1,6 +1,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 
+// Common interface for a single step in a journey
 interface TransitStep {
   travelMode: "WALKING" | "TRANSIT";
   instructions: string;
@@ -17,14 +18,33 @@ interface TransitStep {
   };
 }
 
-interface TransitRoute {
-  totalDuration: number; // in minutes
-  estimatedArrivalTime: string; // ISO string
-  steps: TransitStep[];
+// Common function to format a raw step from Google's API
+function formatStep(step: any): TransitStep {
+    const baseStep: Partial<TransitStep> = {
+        travelMode: step.travel_mode,
+        instructions: step.html_instructions.replace(/<[^>]*>?/gm, ''),
+        duration: Math.round(step.duration.value / 60),
+        distance: step.distance.text,
+    };
+
+    if (step.travel_mode === "TRANSIT" && step.transit_details) {
+        const transitDetails = step.transit_details;
+        baseStep.transitDetails = {
+            lineName: transitDetails.line.name,
+            vehicleType: transitDetails.line.vehicle.type,
+            departureStop: transitDetails.departure_stop.name,
+            arrivalStop: transitDetails.arrival_stop.name,
+            departureTime: new Date(transitDetails.departure_time.value * 1000).toISOString(),
+            arrivalTime: new Date(transitDetails.arrival_time.value * 1000).toISOString(),
+            numStops: transitDetails.num_stops,
+        };
+    }
+    return baseStep as TransitStep;
 }
 
+
 export async function POST(request: NextRequest) {
-  const { origin, departureTime: departureTimeInput } = await request.json();
+  const { origin, departureTime, arrivalTime } = await request.json();
   const apiKey = process.env.Maps_API_KEY;
 
   if (!apiKey) {
@@ -34,21 +54,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'Origin address is required.' }, { status: 400 });
   }
 
-  const departureTime = (departureTimeInput === 'now' || !departureTimeInput)
-    ? 'now'
-    : Math.floor(new Date(departureTimeInput).getTime() / 1000).toString();
-
-  const destination = "홋카이도과학대학 버스 정류장";
   const params = new URLSearchParams({
     origin: origin,
-    destination: destination,
+    destination: "홋카이도과학대학 버스 정류장",
     mode: 'transit',
-    departure_time: departureTime,
     language: 'ja',
     region: 'jp',
-    transit_mode: 'bus|train|subway',
     key: apiKey,
   });
+
+  // Decide whether to use arrival_time or departure_time
+  if (arrivalTime) {
+    // 'Arrive By' logic
+    const arrivalTimestamp = Math.floor(new Date(arrivalTime).getTime() / 1000);
+    params.set('arrival_time', arrivalTimestamp.toString());
+  } else {
+    // 'Depart At' logic (the original functionality)
+    const departureTimestamp = (departureTime === 'now' || !departureTime)
+      ? 'now'
+      : Math.floor(new Date(departureTime).getTime() / 1000).toString();
+    params.set('departure_time', departureTimestamp);
+  }
 
   const apiUrl = `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`;
 
@@ -62,46 +88,53 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         message: `Failed to fetch transit route. ${errorMessage}`,
         rawResponse: rawData 
-      }, { status: apiResponse.status });
+      }, { status: apiResponse.status || 500 });
     }
     
-    const route = rawData.routes[0];
-    if (!route) {
-         return NextResponse.json({ 
-            message: "No route found.",
+    if (rawData.routes.length === 0) {
+        return NextResponse.json({ 
+            message: "No route found for the specified criteria.",
             rawResponse: rawData 
         }, { status: 404 });
     }
 
-    const leg = route.legs[0];
-    const formattedRoute: TransitRoute = {
-      totalDuration: Math.round(leg.duration.value / 60),
-      estimatedArrivalTime: new Date(leg.arrival_time.value * 1000).toISOString(),
-      steps: leg.steps.map((step: any): TransitStep => {
-        const baseStep: Partial<TransitStep> = {
-          travelMode: step.travel_mode,
-          instructions: step.html_instructions.replace(/<[^>]*>?/gm, ''),
-          duration: Math.round(step.duration.value / 60),
-          distance: step.distance.text,
-        };
+    if (arrivalTime) {
+        // 'Arrive By' logic: Find the route with the latest departure time
+        let bestRoute = null;
+        let latestDepartureTimestamp = 0;
 
-        if (step.travel_mode === "TRANSIT") {
-          const transitDetails = step.transit_details;
-          baseStep.transitDetails = {
-              lineName: transitDetails.line.name,
-              vehicleType: transitDetails.line.vehicle.type,
-              departureStop: transitDetails.departure_stop.name,
-              arrivalStop: transitDetails.arrival_stop.name,
-              departureTime: new Date(transitDetails.departure_time.value * 1000).toISOString(),
-              arrivalTime: new Date(transitDetails.arrival_time.value * 1000).toISOString(),
-              numStops: transitDetails.num_stops,
-            };
+        for (const route of rawData.routes) {
+            const currentDepartureTimestamp = route.legs[0].departure_time.value;
+            if (currentDepartureTimestamp > latestDepartureTimestamp) {
+                latestDepartureTimestamp = currentDepartureTimestamp;
+                bestRoute = route;
+            }
         }
-        return baseStep as TransitStep;
-      }),
-    };
+        
+        if (!bestRoute) {
+             return NextResponse.json({ message: "Could not determine the best route.", rawResponse: rawData }, { status: 404 });
+        }
+        
+        const leg = bestRoute.legs[0];
+        const formattedResult = {
+            latestDepartureTime: new Date(leg.departure_time.value * 1000).toISOString(),
+            finalArrivalTime: new Date(leg.arrival_time.value * 1000).toISOString(),
+            totalDuration: Math.round(leg.duration.value / 60),
+            steps: leg.steps.map(formatStep)
+        };
+        return NextResponse.json({ formattedRoute: formattedResult, rawResponse: rawData });
 
-    return NextResponse.json({ formattedRoute, rawResponse: rawData });
+    } else {
+        // 'Depart At' logic: Use the first route provided
+        const route = rawData.routes[0];
+        const leg = route.legs[0];
+        const formattedResult = {
+          totalDuration: Math.round(leg.duration.value / 60),
+          estimatedArrivalTime: new Date(leg.arrival_time.value * 1000).toISOString(),
+          steps: leg.steps.map(formatStep),
+        };
+        return NextResponse.json({ formattedRoute: formattedResult, rawResponse: rawData });
+    }
 
   } catch (error) {
     console.error('Error calling Google Maps API:', error);

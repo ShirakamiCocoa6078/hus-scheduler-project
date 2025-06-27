@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, RefreshCcw, Database, ServerCrash, User as UserIcon, MoreVertical, Pencil, Archive, Trash2, TrainFront, AlertTriangle } from "lucide-react";
+import { Loader2, RefreshCcw, Database, ServerCrash, User as UserIcon, MoreVertical, Pencil, Archive, Trash2, TrainFront, AlertTriangle, Clock } from "lucide-react";
 import Link from "next/link";
 import {
   Table,
@@ -72,10 +72,23 @@ export default function DevAdminPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editFormData, setEditFormData] = useState({ name: "", email: "" });
 
-  const [transitOrigin, setTransitOrigin] = useState("札幌市手稲区前田７条１５丁目４−１");
-  const [isCalculatingTransit, setIsCalculatingTransit] = useState(false);
-  const [transitError, setTransitError] = useState<string | null>(null);
-  const [transitResponse, setTransitResponse] = useState<{ formattedRoute: any; rawResponse: any } | null>(null);
+  // State for "Depart At" test
+  const [departOrigin, setDepartOrigin] = useState("札幌市手稲区前田７条１５丁目４−１");
+  const [isCalculatingDepart, setIsCalculatingDepart] = useState(false);
+  const [departError, setDepartError] = useState<string | null>(null);
+  const [departResponse, setDepartResponse] = useState<{ formattedRoute: any; rawResponse: any } | null>(null);
+
+  // State for "Arrive By" test
+  const [arrivalOrigin, setArrivalOrigin] = useState("札幌駅");
+  const [arrivalDeadline, setArrivalDeadline] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(9, 0, 0, 0);
+    return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+  });
+  const [isCalculatingArrival, setIsCalculatingArrival] = useState(false);
+  const [arrivalError, setArrivalError] = useState<string | null>(null);
+  const [arrivalResponse, setArrivalResponse] = useState<{ formattedRoute: any; rawResponse: any } | null>(null);
 
 
   const fetchData = async () => {
@@ -184,15 +197,15 @@ export default function DevAdminPage() {
     }
   };
   
-  const handleCalculateTransit = async () => {
-    setIsCalculatingTransit(true);
-    setTransitError(null);
-    setTransitResponse(null);
+  const handleCalculateDepartAt = async () => {
+    setIsCalculatingDepart(true);
+    setDepartError(null);
+    setDepartResponse(null);
     try {
       const response = await fetch('/api/dev/transit-route', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ origin: transitOrigin, departureTime: 'now' }),
+        body: JSON.stringify({ origin: departOrigin, departureTime: 'now' }),
       });
 
       const data = await response.json();
@@ -201,14 +214,42 @@ export default function DevAdminPage() {
         throw new Error(data.message || 'Failed to calculate route.');
       }
       
-      setTransitResponse(data);
+      setDepartResponse(data);
 
     } catch (err) {
       const message = err instanceof Error ? err.message : "An unknown error occurred.";
-      setTransitError(message);
+      setDepartError(message);
       toast({ title: "Transit API Error", description: message, variant: 'destructive' });
     } finally {
-      setIsCalculatingTransit(false);
+      setIsCalculatingDepart(false);
+    }
+  };
+  
+  const handleCalculateArriveBy = async () => {
+    setIsCalculatingArrival(true);
+    setArrivalError(null);
+    setArrivalResponse(null);
+    try {
+      const response = await fetch('/api/dev/transit-route', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origin: arrivalOrigin, arrivalTime: arrivalDeadline }),
+      });
+      
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to calculate arrival route.');
+      }
+      
+      setArrivalResponse(data);
+
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "An unknown error occurred.";
+      setArrivalError(message);
+      toast({ title: "Transit API Error", description: message, variant: 'destructive' });
+    } finally {
+      setIsCalculatingArrival(false);
     }
   };
 
@@ -320,81 +361,125 @@ export default function DevAdminPage() {
           </Table>
         )}
       </div>
-       <div className="mt-8 p-4 border border-accent bg-accent/10 rounded-md">
-        <h3 className="text-md font-semibold text-accent mb-2">Prisma Userモデルのヒント:</h3>
-        <pre className="text-xs bg-card p-2 rounded overflow-x-auto">
-{`model User {
-  id              String    @id @default(cuid())
-  name            String?
-  email           String?   @unique
-  emailVerified   DateTime?
-  image           String?
-  onboardingData  Json?
-  isSetupComplete Boolean   @default(false)
-  archived        Boolean   @default(false)
-  accounts        Account[]
-  sessions        Session[]
-}`}
-        </pre>
-         <p className="text-xs text-muted-foreground mt-2">
-            このページはUserモデルのデータを表示しています。関連するAccountやSessionモデルのデータは含まれていません。
-          </p>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl font-bold text-primary flex items-center">
+              <TrainFront className="mr-3 h-6 w-6" />
+              Test: Depart Now
+            </CardTitle>
+            <CardDescription>
+              Test the Google Maps Directions API for calculating a route departing now.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="depart-origin">Origin Address</Label>
+              <Input 
+                id="depart-origin"
+                value={departOrigin}
+                onChange={(e) => setDepartOrigin(e.target.value)}
+                placeholder="e.g., 札幌市手稲区前田７条１５丁目４−１"
+              />
+            </div>
+            <Button onClick={handleCalculateDepartAt} disabled={isCalculatingDepart}>
+              {isCalculatingDepart && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Calculate Route
+            </Button>
+            {departError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{departError}</AlertDescription>
+              </Alert>
+            )}
+            {departResponse && (
+              <Accordion type="single" collapsible className="w-full mt-4">
+                <AccordionItem value="formatted">
+                  <AccordionTrigger>Formatted Route Output</AccordionTrigger>
+                  <AccordionContent>
+                    <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
+                      <code>{JSON.stringify(departResponse.formattedRoute, null, 2)}</code>
+                    </pre>
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="raw">
+                  <AccordionTrigger>Raw Google Maps API Response</AccordionTrigger>
+                  <AccordionContent>
+                    <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
+                      <code>{JSON.stringify(departResponse.rawResponse, null, 2)}</code>
+                    </pre>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            )}
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl font-bold text-primary flex items-center">
+              <Clock className="mr-3 h-6 w-6" />
+              Test: Arrive By Deadline
+            </CardTitle>
+            <CardDescription>
+              Find the latest departure to arrive at HUS by a specific time.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="arrival-origin">Origin Address</Label>
+              <Input 
+                id="arrival-origin"
+                value={arrivalOrigin}
+                onChange={(e) => setArrivalOrigin(e.target.value)}
+                placeholder="e.g., 札幌駅"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="arrival-deadline">Arrival Deadline</Label>
+              <Input 
+                id="arrival-deadline"
+                type="datetime-local"
+                value={arrivalDeadline}
+                onChange={(e) => setArrivalDeadline(e.target.value)}
+              />
+            </div>
+            <Button onClick={handleCalculateArriveBy} disabled={isCalculatingArrival}>
+              {isCalculatingArrival && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Find Latest Departure
+            </Button>
+            {arrivalError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{arrivalError}</AlertDescription>
+              </Alert>
+            )}
+            {arrivalResponse && (
+              <Accordion type="single" collapsible className="w-full mt-4">
+                <AccordionItem value="formatted-arrival">
+                  <AccordionTrigger>Formatted Route Output</AccordionTrigger>
+                  <AccordionContent>
+                    <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
+                      <code>{JSON.stringify(arrivalResponse.formattedRoute, null, 2)}</code>
+                    </pre>
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="raw-arrival">
+                  <AccordionTrigger>Raw Google Maps API Response</AccordionTrigger>
+                  <AccordionContent>
+                    <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
+                      <code>{JSON.stringify(arrivalResponse.rawResponse, null, 2)}</code>
+                    </pre>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            )}
+          </CardContent>
+        </Card>
       </div>
-
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle className="text-xl font-bold text-primary flex items-center">
-            <TrainFront className="mr-3 h-6 w-6" />
-            Transit Route Algorithm Test
-          </CardTitle>
-          <CardDescription>
-            Test the Google Maps Directions API integration for calculating transit routes to HUS.
-            API Key from `process.env.Maps_API_KEY` will be used.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="transit-origin">Origin Address</Label>
-            <Input 
-              id="transit-origin"
-              value={transitOrigin}
-              onChange={(e) => setTransitOrigin(e.target.value)}
-              placeholder="e.g., 札幌市手稲区前田７条１５丁目４−１"
-            />
-          </div>
-          <Button onClick={handleCalculateTransit} disabled={isCalculatingTransit}>
-            {isCalculatingTransit && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Calculate Route
-          </Button>
-          {transitError && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{transitError}</AlertDescription>
-            </Alert>
-          )}
-          {transitResponse && (
-            <Accordion type="single" collapsible className="w-full mt-4">
-              <AccordionItem value="formatted">
-                <AccordionTrigger>Formatted Route Output</AccordionTrigger>
-                <AccordionContent>
-                  <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
-                    <code>{JSON.stringify(transitResponse.formattedRoute, null, 2)}</code>
-                  </pre>
-                </AccordionContent>
-              </AccordionItem>
-              <AccordionItem value="raw">
-                <AccordionTrigger>Raw Google Maps API Response</AccordionTrigger>
-                <AccordionContent>
-                  <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
-                    <code>{JSON.stringify(transitResponse.rawResponse, null, 2)}</code>
-                  </pre>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Edit User Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
