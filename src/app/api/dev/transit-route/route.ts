@@ -44,8 +44,17 @@ function formatStep(step: any): TransitStep {
 
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  console.log('[DEBUG] Received request body:', body);
+  console.log('[DEBUG] /api/dev/transit-route POST handler started.');
+
+  let body;
+  try {
+    body = await request.json();
+    console.log('[DEBUG] Received request body:', body);
+  } catch (e) {
+    console.error('[DEBUG] Failed to parse request body as JSON:', e);
+    return NextResponse.json({ message: 'Invalid JSON in request body.' }, { status: 400 });
+  }
+  
   const { origin, destination, departureTime, arrivalTime } = body;
   const apiKey = process.env.Maps_API_KEY;
 
@@ -59,7 +68,7 @@ export async function POST(request: NextRequest) {
 
   const params = new URLSearchParams({
     mode: 'transit',
-    language: 'ja',
+    language: 'ko',
     region: 'jp',
     key: apiKey,
   });
@@ -73,6 +82,12 @@ export async function POST(request: NextRequest) {
     
     console.log('[DEBUG] Original arrivalTime string:', arrivalTime);
     const arrivalDate = new Date(arrivalTime);
+
+    if (isNaN(arrivalDate.getTime())) {
+        console.error('[DEBUG] Invalid arrivalTime received:', arrivalTime);
+        return NextResponse.json({ message: 'Invalid arrivalTime format. Please provide an ISO 8601 string.' }, { status: 400 });
+    }
+
     console.log('[DEBUG] Parsed arrivalTime Date object:', arrivalDate.toISOString());
     const arrivalTimestamp = Math.floor(arrivalDate.getTime() / 1000);
     console.log('[DEBUG] Converted arrival_time timestamp:', arrivalTimestamp);
@@ -88,6 +103,12 @@ export async function POST(request: NextRequest) {
     if (departureTime && departureTime !== 'now') {
       console.log('[DEBUG] Original departureTime string:', departureTime);
       const departureDate = new Date(departureTime);
+
+      if (isNaN(departureDate.getTime())) {
+        console.error('[DEBUG] Invalid departureTime received:', departureTime);
+        return NextResponse.json({ message: 'Invalid departureTime format. Please provide an ISO 8601 string.' }, { status: 400 });
+      }
+
       console.log('[DEBUG] Parsed departureTime Date object:', departureDate.toISOString());
       const departureTimestamp = Math.floor(departureDate.getTime() / 1000).toString();
       console.log('[DEBUG] Converted departure_time timestamp:', departureTimestamp);
