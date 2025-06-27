@@ -1,50 +1,16 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { PrismaClient } from '@prisma/client';
 
-
-const tempDataPath = path.join(process.cwd(), 'src', 'lib', 'tempData.json');
+const prisma = new PrismaClient();
 
 interface OnboardingData {
   department?: string;
   homeStation?: string;
   universityStation?: string;
   completed?: boolean;
-}
-
-interface User {
-  id: string;
-  name?: string | null;
-  email: string;
-  password?: string; 
-  image?: string | null;
-  onboardingData?: OnboardingData;
-}
-
-async function getUsers(): Promise<User[]> {
-  try {
-    const data = await fs.readFile(tempDataPath, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return [];
-    }
-    console.error("tempData.jsonの読み取りに失敗:", error);
-    throw new Error("ユーザーデータの読み取りに失敗しました。");
-  }
-}
-
-async function saveUsers(users: User[]): Promise<void> {
-  try {
-    await fs.writeFile(tempDataPath, JSON.stringify(users, null, 2), 'utf-8');
-  } catch (error) {
-    console.warn("Failed to write to tempData.json. This is expected in a serverless environment.", error);
-    // サーバーレス環境では、ファイルシステムへの書き込みが失敗する可能性があります。
-    // 警告をログに記録しますが、フローを続行するためにエラーはスローしません。
-  }
 }
 
 export async function POST(request: NextRequest) {
@@ -57,23 +23,32 @@ export async function POST(request: NextRequest) {
   try {
     const onboardingDataFromRequest = await request.json() as Omit<OnboardingData, 'completed'>;
     
-    const users = await getUsers();
-    const userIndex = users.findIndex(u => u.email === session.user?.email);
+    // Find the user in the database
+    const currentUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
 
-    if (userIndex === -1) {
+    if (!currentUser) {
       return NextResponse.json({ message: 'ユーザーが見つかりません。' }, { status: 404 });
     }
 
-    // 既存のオンボーディングデータとマージし、completedをtrueに設定
-    users[userIndex].onboardingData = {
-      ...users[userIndex].onboardingData,
+    // Merge existing data with new data and set completed to true
+    const existingOnboardingData = (currentUser as any).onboardingData || {};
+    const newOnboardingData = {
+      ...existingOnboardingData,
       ...onboardingDataFromRequest,
-      completed: true, // オンボーディング完了
+      completed: true,
     };
+    
+    // Update the user's onboardingData in the database
+    const updatedUser = await prisma.user.update({
+      where: { email: session.user.email },
+      data: {
+        onboardingData: newOnboardingData,
+      },
+    });
 
-    await saveUsers(users);
-
-    return NextResponse.json({ message: 'オンボーディング情報が更新されました。', user: users[userIndex] }, { status: 200 });
+    return NextResponse.json({ message: 'オンボーディング情報が更新されました。', user: updatedUser }, { status: 200 });
   } catch (error) {
     console.error('オンボーディング更新エラー:', error);
     const errorMessage = error instanceof Error ? error.message : 'サーバーエラーが発生しました。';

@@ -3,14 +3,11 @@
 
 import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertTriangle, Mail, KeyRound, LogIn, UserPlus, Settings } from "lucide-react";
-import Image from "next/image";
+import { Loader2, AlertTriangle, LogIn, UserPlus, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 
@@ -27,15 +24,9 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
-  const [isLoading, setIsLoading] = useState(false); 
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isCredentialsLoading, setIsCredentialsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showLoginForm, setShowLoginForm] = useState(false);
 
   useEffect(() => {
     const nextAuthError = searchParams.get("error");
@@ -79,7 +70,6 @@ export function LoginForm() {
     setIsGoogleLoading(true);
     setError(null);
     try {
-      // Googleサインイン成功時のリダイレクト先を "/" (InitialRedirectPage) に変更
       const res = await signIn("google", { callbackUrl: "/", redirect: true });
       if (res?.error) {
           const errMessage = res.error === "Callback" ? "ログインがキャンセルされたか失敗しました。もう一度お試しください。" : "Googleログインに失敗しました。HUS大学のGoogleアカウント(@stu.hus.ac.jp)を使用してください。";
@@ -95,47 +85,7 @@ export function LoginForm() {
     }
   };
 
-  const handleCredentialsSignIn = async (e: FormEvent) => {
-    e.preventDefault();
-    setIsCredentialsLoading(true);
-    setError(null);
-    try {
-      const result = await signIn("credentials", {
-        redirect: false, // リダイレクトはuseEffectで処理
-        email,
-        password,
-        callbackUrl: "/", // 成功時のリダイレクト先
-      });
-
-      if (result?.error) {
-        const errorMessage = result.error === "CredentialsSignin"
-          ? "メールアドレスまたはパスワードが無効です。再度お試しください。"
-          : "ログインに失敗しました。認証情報を確認するか、別の方法をお試しください。";
-        setError(errorMessage);
-        toast({
-          title: "ログイン失敗",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      } else if (result?.ok) {
-        // 成功、useEffectがリダイレクトを処理します
-        // router.replace("/"); // 明示的なリダイレクトはuseEffectに任せる
-      } else {
-        setError("ログイン中に予期せぬ問題が発生しました。もう一度お試しください。");
-        toast({ title: "ログインエラー", description: "予期せぬ問題が発生しました。もう一度お試しください。", variant: "destructive" });
-      }
-    } catch (err) {
-      console.error("認証情報サインインが予期せず失敗しました:", err);
-      setError("予期せぬエラーが発生しました。もう一度お試しください。");
-      toast({ title: "ログインエラー", description: "予期せぬエラーが発生しました。もう一度お試しください。", variant: "destructive" });
-    } finally {
-      setIsCredentialsLoading(false);
-    }
-  };
-  
-  const anyLoading = isGoogleLoading || isCredentialsLoading;
-
-  if (status === "loading" && !anyLoading) {
+  if (status === "loading" && !isGoogleLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -167,113 +117,37 @@ export function LoginForm() {
             </Alert>
           )}
 
-          {!showLoginForm && (
-            <div className="space-y-4">
-               <Button
-                onClick={() => setShowLoginForm(true)}
-                disabled={anyLoading}
-                className="w-full text-base py-6"
-                aria-label="ログインフォームを開く"
-              >
-                <LogIn className="mr-2 h-5 w-5" />
-                <span>ログイン</span>
-              </Button>
-              <Button
-                onClick={() => router.push('/signup')}
-                disabled={anyLoading}
-                variant="outline"
-                className="w-full text-base py-6"
-                aria-label="新規登録ページへ移動"
-              >
-                <UserPlus className="mr-2 h-5 w-5" />
-                <span>新規登録</span>
-              </Button>
-              <Button variant="link" asChild className="text-xs text-muted-foreground">
-                <Link href="/dev-admin">
-                  <Settings className="mr-1 h-3 w-3" />
-                  開発者用管理ページ
-                </Link>
-              </Button>
-            </div>
-          )}
-          
-          {showLoginForm && (
-            <>
-              <Button
-                onClick={handleGoogleSignIn}
-                disabled={anyLoading}
-                className="w-full text-base py-6 bg-accent hover:bg-accent/90 text-accent-foreground"
-                aria-label="Googleでサインイン"
-              >
-                {isGoogleLoading ? (
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                ) : (
-                  <GoogleIcon />
-                )}
-                <span className="ml-2">Googleでサインイン</span>
-              </Button>
-
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">
-                    またはメールアドレスでサインイン
-                  </span>
-                </div>
-              </div>
-
-              <form onSubmit={handleCredentialsSignIn} className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="email">メールアドレス</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      placeholder="例：s1234567@stu.hus.ac.jp" 
-                      value={email} 
-                      onChange={(e) => setEmail(e.target.value)} 
-                      required 
-                      className="pl-10"
-                      disabled={anyLoading}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="password">パスワード</Label>
-                  <div className="relative">
-                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="password" 
-                      type="password" 
-                      placeholder="••••••••" 
-                      value={password} 
-                      onChange={(e) => setPassword(e.target.value)} 
-                      required 
-                      className="pl-10"
-                      disabled={anyLoading}
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="submit"
-                  disabled={anyLoading}
-                  className="w-full text-base py-6"
-                  aria-label="メールアドレスとパスワードでサインイン"
-                >
-                  {isCredentialsLoading ? (
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  ) : (
-                    <LogIn className="mr-2 h-5 w-5" />
-                  )}
-                  メールアドレスでサインイン
-                </Button>
-              </form>
-              <Button variant="link" onClick={() => setShowLoginForm(false)} className="w-full">戻る</Button>
-            </>
-          )}
+          <div className="space-y-4">
+             <Button
+              onClick={handleGoogleSignIn}
+              disabled={isGoogleLoading}
+              className="w-full text-base py-6 bg-accent hover:bg-accent/90 text-accent-foreground"
+              aria-label="Googleでサインイン"
+            >
+              {isGoogleLoading ? (
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              ) : (
+                <GoogleIcon />
+              )}
+              <span className="ml-2">Googleでサインイン</span>
+            </Button>
+            <Button
+              onClick={() => router.push('/signup')}
+              disabled={isGoogleLoading}
+              variant="outline"
+              className="w-full text-base py-6"
+              aria-label="新規登録ページへ移動"
+            >
+              <UserPlus className="mr-2 h-5 w-5" />
+              <span>アカウントをお持ちでない場合</span>
+            </Button>
+            <Button variant="link" asChild className="text-xs text-muted-foreground">
+              <Link href="/dev-admin">
+                <Settings className="mr-1 h-3 w-3" />
+                開発者用管理ページ
+              </Link>
+            </Button>
+          </div>
           
           <p className="text-xs text-center text-muted-foreground px-4">
             Googleでのサインインは <strong>@stu.hus.ac.jp</strong> のアドレスに制限されています。

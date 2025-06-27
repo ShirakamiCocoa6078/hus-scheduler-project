@@ -1,13 +1,10 @@
 
 import NextAuth from "next-auth";
+import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import CredentialsProvider from "next-auth/providers/credentials";
-import type { NextAuthOptions, User as NextAuthUser } from "next-auth";
-import fs from "fs/promises";
-import path from "path";
+import { PrismaAdapter } from "@next-auth/prisma-adapter";
+import { PrismaClient } from "@prisma/client";
 
-// Check for environment variables at the start.
-// This ensures the server fails fast if they are not configured.
 if (!process.env.GOOGLE_CLIENT_ID) {
   throw new Error("GOOGLE_CLIENT_ID is not set. Please check your environment variables.");
 }
@@ -15,44 +12,12 @@ if (!process.env.GOOGLE_CLIENT_SECRET) {
   throw new Error("GOOGLE_CLIENT_SECRET is not set. Please check your environment variables.");
 }
 
-
-const tempDataPath = path.join(process.cwd(), "src", "lib", "tempData.json");
-
-interface StoredUser {
-  id: string;
-  name?: string | null;
-  email: string;
-  password?: string; // 開発用：平文パスワード、本番ではハッシュ化必須
-  image?: string | null;
-  onboardingData?: {
-    department?: string;
-    homeStation?: string;
-    universityStation?: string;
-    completed?: boolean;
-  };
-}
-
-// カスタムユーザー型をインポートされた型と一致させる
-interface CustomUser extends NextAuthUser {
-  id: string;
-  onboardingData?: StoredUser['onboardingData'];
-}
-
-
-async function getUsers(): Promise<StoredUser[]> {
-  try {
-    const data = await fs.readFile(tempDataPath, "utf-8");
-    return JSON.parse(data) as StoredUser[];
-  } catch (error) {
-    // ファイルが存在しない場合などは空の配列を返す
-    return [];
-  }
-}
+const prisma = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
-      // Use environment variables directly to ensure the latest values are used.
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
       authorization: {
@@ -64,114 +29,48 @@ export const authOptions: NextAuthOptions = {
         },
       },
     }),
-    CredentialsProvider({
-      name: "Credentials",
-      credentials: {
-        email: { label: "メールアドレス", type: "email" },
-        password: { label: "パスワード", type: "password" },
-      },
-      async authorize(credentials): Promise<CustomUser | null> {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
-        const users = await getUsers();
-        const user = users.find(u => u.email === credentials.email);
-
-        if (user && user.password === credentials.password) { // 開発用：平文比較
-          return {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            image: user.image,
-            onboardingData: user.onboardingData,
-          } as CustomUser;
-        }
-        return null;
-      },
-    }),
   ],
   secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
   },
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ account, profile }) {
       if (account?.provider === "google") {
-        if (profile && 'email_verified' in profile && (profile as any).email_verified) {
-          if (profile.email && profile.email.endsWith("@stu.hus.ac.jp")) {
-            // Googleサインイン時にtempData.jsonにユーザーを保存または更新
-            const users = await getUsers();
-            let existingUser = users.find(u => u.email === profile.email);
-            if (!existingUser) {
-              existingUser = {
-                id: user.id, // NextAuthが生成したIDを使用
-                email: profile.email,
-                name: profile.name,
-                image: (profile as any).picture,
-                onboardingData: { completed: false }
-              };
-              users.push(existingUser);
-            } else {
-              existingUser.name = profile.name ?? existingUser.name;
-              existingUser.image = (profile as any).picture ?? existingUser.image;
-            }
-            
-            // NOTE: This is commented out to prevent crashes in read-only filesystems (like Vercel).
-            // User data will be in-memory for the session but not persisted on Google Sign-In.
-            // try {
-            //   await fs.writeFile(tempDataPath, JSON.stringify(users, null, 2));
-            // } catch (error) {
-            //   console.warn("Failed to write to tempData.json on signIn. This is expected in a serverless environment.", error);
-            // }
-
-            // userオブジェクトにオンボーディングデータを追加して authorize や jwt コールバックで使えるようにする
-            (user as CustomUser).onboardingData = existingUser.onboardingData;
-            return true;
-          } else {
-            console.log("HUSドメイン不一致 (Google): ", profile.email);
-            return '/login?error=DomainMismatch'; 
-          }
+        if (profile?.email && profile.email.endsWith("@stu.hus.ac.jp")) {
+          return true;
+        } else {
+          console.log("HUSドメイン不一致 (Google): ", profile?.email);
+          return '/login?error=DomainMismatch';
         }
-        return false; 
       }
-      if (account?.provider === "credentials") {
-        // 認証プロバイダのauthorize関数でユーザーは既に検証済み
-        return !!user;
-      }
-      return false; 
+      return false; // Block other providers
     },
-    async jwt({ token, user, account, profile }) {
-        // 初期サインイン時には`user`オブジェクトが存在します。
-        // これを使ってトークンを初期化します。
-        if (user) {
-            token.id = user.id;
-            token.onboardingData = (user as CustomUser).onboardingData;
-        }
 
-        // セッションが要求されるたびに、DB（tempData.json）から最新のユーザー情報を取得してトークンを更新します。
-        // これにより、オンボーディング完了などの状態変化が即座にセッションに反映されるようになります。
-        if (token.email) {
-            const users = await getUsers();
-            const dbUser = users.find(u => u.email === token.email);
-            if (dbUser) {
-                token.id = dbUser.id;
-                token.name = dbUser.name;
-                token.picture = dbUser.image;
-                token.onboardingData = dbUser.onboardingData;
-            }
+    async jwt({ token }) {
+      if (token.email) {
+        const dbUser = await prisma.user.findUnique({
+          where: { email: token.email },
+        });
+        if (dbUser) {
+          token.id = dbUser.id;
+          token.name = dbUser.name;
+          token.picture = dbUser.image;
+          // Here we cast to `any` because the default Prisma User model doesn't have `onboardingData` by default.
+          // We assume it's added as a JSON field in `schema.prisma`.
+          token.onboardingData = (dbUser as any).onboardingData;
         }
-        
-        return token;
+      }
+      return token;
     },
+
     async session({ session, token }) {
-      session.user.id = token.id as string;
-      session.user.name = token.name;
-      session.user.email = token.email;
-      session.user.image = token.picture as string | null | undefined;
-      session.user.onboardingData = token.onboardingData as CustomUser['onboardingData'];
-      
-      if (token.accessToken) {
-        session.accessToken = token.accessToken as string;
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.name = token.name;
+        session.user.email = token.email as string;
+        session.user.image = token.picture;
+        session.user.onboardingData = token.onboardingData as any;
       }
       return session;
     },

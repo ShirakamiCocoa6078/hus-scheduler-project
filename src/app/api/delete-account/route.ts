@@ -1,43 +1,11 @@
 
 // src/app/api/delete-account/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { PrismaClient } from '@prisma/client';
 
-const tempDataPath = path.join(process.cwd(), 'src', 'lib', 'tempData.json');
-
-interface User {
-  id: string;
-  name?: string | null;
-  email: string;
-  // 他のフィールド...
-}
-
-async function getUsers(): Promise<User[]> {
-  try {
-    const data = await fs.readFile(tempDataPath, 'utf-8');
-    return JSON.parse(data) as User[];
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return [];
-    }
-    console.error("tempData.jsonの読み取りに失敗:", error);
-    throw new Error("ユーザーデータの読み取りに失敗しました。");
-  }
-}
-
-async function saveUsers(users: User[]): Promise<void> {
-  try {
-    await fs.writeFile(tempDataPath, JSON.stringify(users, null, 2), 'utf-8');
-  } catch (error) {
-    console.error("tempData.jsonへの書き込みに失敗:", error);
-    // エラーを再スローして、呼び出し元のAPIハンドラでキャッチできるようにします。
-    // これにより、クライアントに明確なエラーが返されます。
-    throw new Error("ユーザーデータの保存に失敗しました。サーバーレス環境ではファイル書き込みができない場合があります。");
-  }
-}
+const prisma = new PrismaClient();
 
 export async function DELETE(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -47,16 +15,20 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const users = await getUsers();
-    const updatedUsers = users.filter(u => u.id !== session.user?.id);
+    // Find the user first to ensure they exist before attempting deletion.
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+    });
 
-    if (users.length === updatedUsers.length) {
-      // この状況は、ユーザーが既に削除されているがセッションが残っている場合などに発生する可能性があります。
+    if (!user) {
       console.warn(`削除試行エラー: ユーザーID ${session.user.id} が見つかりませんでした。`);
       return NextResponse.json({ message: '削除対象のユーザーが見つかりませんでした。' }, { status: 404 });
     }
-
-    await saveUsers(updatedUsers);
+    
+    // Delete the user from the database
+    await prisma.user.delete({
+      where: { id: session.user.id },
+    });
 
     return NextResponse.json({ message: 'アカウントが正常に削除されました。' }, { status: 200 });
   } catch (error) {
