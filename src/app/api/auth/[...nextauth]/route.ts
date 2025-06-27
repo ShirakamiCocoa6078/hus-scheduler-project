@@ -70,29 +70,26 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account }) {
       console.log("--- jwt Callback Start ---");
       try {
-        console.log("Incoming JWT:", token);
-        console.log("User object (only available on first sign-in):", user);
-        console.log("Account object (only available on first sign-in):", account);
-
-        // Persist the user's ID to the token right after signin
+        // On initial sign-in, `user` object is available
         if (account && user) {
-          console.log("First sign-in detected. Augmenting token with user ID.");
+          console.log("First sign-in detected. Augmenting token with user ID and initial data.");
           token.id = user.id;
+          token.isSetupComplete = (user as any).isSetupComplete ?? false;
+          token.onboardingData = (user as any).onboardingData;
         }
 
-        // After the initial sign-in, we fetch user data from DB to keep the token updated
+        // On subsequent requests, we fetch from DB to keep the token updated
         if (token.email) {
-          console.log(`Fetching user data from DB for email: ${token.email}`);
           const dbUser = await prisma.user.findUnique({
             where: { email: token.email },
           });
 
           if (dbUser) {
-            console.log("User found in DB:", dbUser);
             token.id = dbUser.id;
             token.name = dbUser.name;
             token.picture = dbUser.image;
             token.onboardingData = (dbUser as any).onboardingData;
+            token.isSetupComplete = dbUser.isSetupComplete;
             console.log("Augmented token with DB data:", token);
           } else {
              console.warn(`User with email ${token.email} not found in DB during JWT callback.`);
@@ -119,6 +116,7 @@ export const authOptions: NextAuthOptions = {
           session.user.email = token.email as string;
           session.user.image = token.picture;
           session.user.onboardingData = token.onboardingData as any;
+          session.user.isSetupComplete = token.isSetupComplete as boolean;
           console.log("Final session object:", session);
         } else {
            console.warn("Token or session.user is missing.");

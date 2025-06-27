@@ -15,17 +15,13 @@ export function useOnboardingStatus() {
       return;
     }
 
-    if (authStatus === "authenticated" && session?.user?.onboardingData) {
-      setIsOnboarded(session.user.onboardingData.completed === true);
+    if (authStatus === "authenticated" && session?.user) {
+      setIsOnboarded(session.user.isSetupComplete === true);
     } else {
       setIsOnboarded(false);
     }
     setIsLoading(false);
   }, [session, authStatus]);
-
-  // setOnboardedStatus は外部から直接呼び出されず、セッションの更新によって状態が変化するため、
-  // このフックからは削除するか、または何もしない関数として残すことができます。
-  // ここでは、状態がセッションに由来することを明確にするため、セッターは提供しません。
 
   return { isOnboarded, isLoading };
 }

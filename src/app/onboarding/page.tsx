@@ -68,6 +68,8 @@ export default function OnboardingPage() {
         throw new Error(errorData.message || "オンボーディング情報の更新に失敗しました。");
       }
       
+      // The session will be updated on the next page load or via the JWT callback automatically.
+      // For immediate reflection, we can call update()
       await updateSession();
 
       toast({

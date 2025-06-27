@@ -23,8 +23,8 @@ export default function InitialRedirectPage() {
     }
 
     if (authStatus === "authenticated") {
-      // セッションユーザーにオンボーディングデータがあり、それが完了しているか確認
-      if (session?.user?.onboardingData?.completed) {
+      // Check the isSetupComplete flag from the session
+      if (session?.user?.isSetupComplete) {
         router.replace("/dashboard");
       } else {
         router.replace("/onboarding");
@@ -32,7 +32,7 @@ export default function InitialRedirectPage() {
     } else if (authStatus === "unauthenticated") {
       router.replace("/login");
     }
-  }, [isClientRendered, session, authStatus, isOnboarded, isOnboardingLoading, router]); // isOnboarded を依存配列に追加
+  }, [isClientRendered, session, authStatus, isOnboarded, isOnboardingLoading, router]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-4">

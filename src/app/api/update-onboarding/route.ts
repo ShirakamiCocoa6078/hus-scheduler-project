@@ -6,45 +6,22 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-interface OnboardingData {
-  department?: string;
-  homeStation?: string;
-  universityStation?: string;
-  completed?: boolean;
-}
-
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user?.email) {
+  if (!session || !session.user?.id) {
     return NextResponse.json({ message: '認証されていません。' }, { status: 401 });
   }
 
   try {
-    const onboardingDataFromRequest = await request.json() as Omit<OnboardingData, 'completed'>;
+    const dataFromRequest = await request.json();
     
-    // Find the user in the database
-    const currentUser = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!currentUser) {
-      return NextResponse.json({ message: 'ユーザーが見つかりません。' }, { status: 404 });
-    }
-
-    // Merge existing data with new data and set completed to true
-    const existingOnboardingData = (currentUser as any).onboardingData || {};
-    const newOnboardingData = {
-      ...existingOnboardingData,
-      ...onboardingDataFromRequest,
-      completed: true,
-    };
-    
-    // Update the user's onboardingData in the database
+    // Update the user's onboardingData and set isSetupComplete to true
     const updatedUser = await prisma.user.update({
-      where: { email: session.user.email },
+      where: { id: session.user.id },
       data: {
-        onboardingData: newOnboardingData,
+        onboardingData: dataFromRequest,
+        isSetupComplete: true,
       },
     });
 
