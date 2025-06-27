@@ -98,16 +98,16 @@ export default function DevAdminPage() {
       const response = await fetch("/api/get-temp-data");
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || "データの取得に失敗しました。");
+        throw new Error(errorData.message || "데이터의 취득에 실패했습니다.");
       }
       const data: DisplayUser[] = await response.json();
       setUsers(data);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "不明なエラーが発生しました。";
+      const message = err instanceof Error ? err.message : "불명확한 에러가 발생했습니다.";
       setError(message);
       toast({
-        title: "エラー",
-        description: `データ取得失敗: ${message}`,
+        title: "에러",
+        description: `데이터 취득 실패: ${message}`,
         variant: "destructive",
       });
     } finally {
@@ -145,11 +145,11 @@ export default function DevAdminPage() {
       }
       const updatedUser: DisplayUser = await response.json();
       setUsers(users.map(u => u.id === updatedUser.id ? {...u, ...updatedUser} : u));
-      toast({ title: "成功", description: "ユーザー情報が更新されました。" });
+      toast({ title: "성공", description: "유저 정보가 갱신되었습니다." });
       setIsEditDialogOpen(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : "An unknown error occurred.";
-      toast({ title: "エラー", description: `更新失敗: ${message}`, variant: 'destructive' });
+      toast({ title: "에러", description: `갱신 실패: ${message}`, variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
@@ -168,10 +168,10 @@ export default function DevAdminPage() {
       }
       const updatedUser: DisplayUser = await response.json();
       setUsers(users.map(u => u.id === updatedUser.id ? {...u, ...updatedUser} : u));
-      toast({ title: "成功", description: `ユーザーを${updatedUser.archived ? '保管' : '保管解除'}しました。` });
+      toast({ title: "성공", description: `유저를 ${updatedUser.archived ? '보관' : '보관 해제'}했습니다.` });
     } catch (err) {
       const message = err instanceof Error ? err.message : "An unknown error occurred.";
-      toast({ title: "エラー", description: `状態変更失敗: ${message}`, variant: 'destructive' });
+      toast({ title: "에러", description: `상태 변경 실패: ${message}`, variant: 'destructive' });
     }
   };
   
@@ -187,11 +187,11 @@ export default function DevAdminPage() {
         throw new Error(errorData.message || 'Failed to delete user.');
       }
       setUsers(users.filter(u => u.id !== selectedUser.id));
-      toast({ title: "成功", description: "ユーザーを削除しました。" });
+      toast({ title: "성공", description: "유저를 삭제했습니다." });
       setIsDeleteDialogOpen(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : "An unknown error occurred.";
-      toast({ title: "エラー", description: `削除失敗: ${message}`, variant: 'destructive' });
+      toast({ title: "에러", description: `삭제 실패: ${message}`, variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
@@ -203,9 +203,9 @@ export default function DevAdminPage() {
     setToSchoolResponse(null);
 
     if (!toSchoolDate) {
-      const msg = "Please select a date.";
+      const msg = "날짜를 선택해주세요.";
       setToSchoolError(msg);
-      toast({ title: "Error", description: msg, variant: "destructive" });
+      toast({ title: "에러", description: msg, variant: "destructive" });
       setIsCalculatingToSchool(false);
       return;
     }
@@ -232,14 +232,21 @@ export default function DevAdminPage() {
         }),
       });
       const data = await response.json();
+
+      if (data.debugLogs && Array.isArray(data.debugLogs)) {
+        console.groupCollapsed("Server-side logs for 등교 시뮬레이션 (클릭하여 확장)");
+        data.debugLogs.forEach((log: string) => console.log(log));
+        console.groupEnd();
+      }
+
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to calculate route.');
+        throw new Error(data.message || '경로 계산에 실패했습니다.');
       }
       setToSchoolResponse(data);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "An unknown error occurred.";
+      const message = err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.";
       setToSchoolError(message);
-      toast({ title: "Transit API Error", description: message, variant: 'destructive' });
+      toast({ title: "경로 탐색 API 에러", description: message, variant: 'destructive' });
     } finally {
       setIsCalculatingToSchool(false);
     }
@@ -259,14 +266,21 @@ export default function DevAdminPage() {
         }),
       });
       const data = await response.json();
+
+      if (data.debugLogs && Array.isArray(data.debugLogs)) {
+        console.groupCollapsed("Server-side logs for 귀가 시뮬레이션 (클릭하여 확장)");
+        data.debugLogs.forEach((log: string) => console.log(log));
+        console.groupEnd();
+      }
+
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to calculate route.');
+        throw new Error(data.message || '경로 계산에 실패했습니다.');
       }
       setFromSchoolResponse(data);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "An unknown error occurred.";
+      const message = err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.";
       setFromSchoolError(message);
-      toast({ title: "Transit API Error", description: message, variant: 'destructive' });
+      toast({ title: "경로 탐색 API 에러", description: message, variant: 'destructive' });
     } finally {
       setIsCalculatingFromSchool(false);
     }
@@ -278,20 +292,20 @@ export default function DevAdminPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-primary flex items-center">
           <Database className="mr-3 h-8 w-8" />
-          開発者用データベース閲覧
+          개발자 관리 페이지
         </h1>
         <Button variant="outline" asChild>
-          <Link href="/login">ログインページへ戻る</Link>
+          <Link href="/login">로그인 페이지로 돌아가기</Link>
         </Button>
       </div>
 
       <div className="flex items-center justify-between mb-4">
         <p className="text-muted-foreground">
-          データベースから直接取得した現在のユーザーデータです。
+          데이터베이스에서 직접 가져온 현재 사용자 데이터입니다.
         </p>
         <Button onClick={fetchData} variant="outline" disabled={isLoading}>
           <RefreshCcw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          再読み込み
+          새로고침
         </Button>
       </div>
 
@@ -299,27 +313,27 @@ export default function DevAdminPage() {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center h-80">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="mt-4 text-muted-foreground">データを読み込み中...</p>
+            <p className="mt-4 text-muted-foreground">데이터를 불러오는 중...</p>
           </div>
         ) : error ? (
            <div className="flex flex-col items-center justify-center h-80 text-destructive">
             <ServerCrash className="h-12 w-12" />
-            <p className="mt-4 font-semibold">データの読み込みに失敗しました</p>
+            <p className="mt-4 font-semibold">데이터 로딩 실패</p>
             <p className="text-sm">{error}</p>
           </div>
         ) : (
           <Table>
             <TableCaption>
-              {users.length > 0 ? `${users.length}人のユーザーが見つかりました。` : "データベースにユーザーがいません。"}
+              {users.length > 0 ? `${users.length}명의 유저를 찾았습니다.` : "데이터베이스에 유저가 없습니다."}
             </TableCaption>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[60px]">User</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead className="text-center">Onboarded</TableHead>
-                <TableHead className="w-[280px]">User ID</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="w-[60px]">유저</TableHead>
+                <TableHead>이름</TableHead>
+                <TableHead>이메일</TableHead>
+                <TableHead className="text-center">온보딩 완료</TableHead>
+                <TableHead className="w-[280px]">유저 ID</TableHead>
+                <TableHead className="text-right">작업</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -335,14 +349,14 @@ export default function DevAdminPage() {
                   </TableCell>
                   <TableCell className="font-medium">
                     {user.name ?? "N/A"}
-                    {user.archived && <Badge variant="secondary" className="ml-2">Archived</Badge>}
+                    {user.archived && <Badge variant="secondary" className="ml-2">보관됨</Badge>}
                   </TableCell>
                   <TableCell>{user.email ?? "N/A"}</TableCell>
                   <TableCell className="text-center">
                     {user.isSetupComplete ? (
-                      <Badge variant="default">Yes</Badge>
+                      <Badge variant="default">예</Badge>
                     ) : (
-                      <Badge variant="destructive">No</Badge>
+                      <Badge variant="destructive">아니요</Badge>
                     )}
                   </TableCell>
                    <TableCell className="font-mono text-xs">{user.id}</TableCell>
@@ -354,14 +368,14 @@ export default function DevAdminPage() {
                          </Button>
                        </DropdownMenuTrigger>
                        <DropdownMenuContent align="end">
-                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                         <DropdownMenuLabel>작업</DropdownMenuLabel>
                          <DropdownMenuItem onClick={() => handleEditClick(user)}>
                            <Pencil className="mr-2 h-4 w-4" />
-                           Edit User
+                           유저 수정
                          </DropdownMenuItem>
                          <DropdownMenuItem onClick={() => handleArchiveToggle(user)}>
                            <Archive className="mr-2 h-4 w-4" />
-                           {user.archived ? 'Unarchive' : 'Archive'}
+                           {user.archived ? '보관 해제' : '보관'}
                          </DropdownMenuItem>
                          <DropdownMenuSeparator />
                          <DropdownMenuItem
@@ -369,7 +383,7 @@ export default function DevAdminPage() {
                            onClick={() => handleDeleteClick(user)}
                          >
                            <Trash2 className="mr-2 h-4 w-4" />
-                           Delete User
+                           유저 삭제
                          </DropdownMenuItem>
                        </DropdownMenuContent>
                      </DropdownMenu>
@@ -386,7 +400,7 @@ export default function DevAdminPage() {
           <CardHeader>
             <CardTitle className="text-xl font-bold text-primary flex items-center">
               <School className="mr-3 h-6 w-6" />
-              등교 시뮬레이션 (Arrive-By)
+              등교 시뮬레이션 (도착 시간 기준)
             </CardTitle>
             <CardDescription>
               특정 교시까지 학교에 도착하기 위한 최신 출발 시간을 계산합니다.
@@ -458,7 +472,7 @@ export default function DevAdminPage() {
             {toSchoolResponse && (
               <Accordion type="single" collapsible className="w-full mt-4">
                 <AccordionItem value="formatted">
-                  <AccordionTrigger>Formatted Route Output</AccordionTrigger>
+                  <AccordionTrigger>포맷된 경로 결과</AccordionTrigger>
                   <AccordionContent>
                     <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
                       <code>{JSON.stringify(toSchoolResponse.formattedRoute, null, 2)}</code>
@@ -466,7 +480,7 @@ export default function DevAdminPage() {
                   </AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="raw">
-                  <AccordionTrigger>Raw Google Maps API Response</AccordionTrigger>
+                  <AccordionTrigger>원본 Google Maps API 응답</AccordionTrigger>
                   <AccordionContent>
                     <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
                       <code>{JSON.stringify(toSchoolResponse.rawResponse, null, 2)}</code>
@@ -482,7 +496,7 @@ export default function DevAdminPage() {
           <CardHeader>
             <CardTitle className="text-xl font-bold text-primary flex items-center">
               <Home className="mr-3 h-6 w-6" />
-              귀가 시뮬레이션 (Depart-Now)
+              귀가 시뮬레이션 (현재 출발 기준)
             </CardTitle>
             <CardDescription>
               현재 시각에 학교에서 출발하는 가장 빠른 경로를 계산합니다.
@@ -512,7 +526,7 @@ export default function DevAdminPage() {
             {fromSchoolResponse && (
               <Accordion type="single" collapsible className="w-full mt-4">
                 <AccordionItem value="formatted-arrival">
-                  <AccordionTrigger>Formatted Route Output</AccordionTrigger>
+                  <AccordionTrigger>포맷된 경로 결과</AccordionTrigger>
                   <AccordionContent>
                     <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
                       <code>{JSON.stringify(fromSchoolResponse.formattedRoute, null, 2)}</code>
@@ -520,7 +534,7 @@ export default function DevAdminPage() {
                   </AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="raw-arrival">
-                  <AccordionTrigger>Raw Google Maps API Response</AccordionTrigger>
+                  <AccordionTrigger>원본 Google Maps API 응답</AccordionTrigger>
                   <AccordionContent>
                     <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
                       <code>{JSON.stringify(fromSchoolResponse.rawResponse, null, 2)}</code>
@@ -537,15 +551,15 @@ export default function DevAdminPage() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>사용자 편집</DialogTitle>
+            <DialogTitle>유저 편집</DialogTitle>
             <DialogDescription>
-              {selectedUser?.name} 의 프로필 정보를 변경합니다. 클릭해서 저장해주세요.
+              {selectedUser?.name} 의 프로필 정보를 변경합니다. 저장 버튼을 눌러주세요.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="name" className="text-right">
-                Name
+                이름
               </Label>
               <Input
                 id="name"
@@ -556,7 +570,7 @@ export default function DevAdminPage() {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="email" className="text-right">
-                Email
+                이메일
               </Label>
               <Input
                 id="email"
@@ -582,7 +596,7 @@ export default function DevAdminPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
             <AlertDialogDescription>
-              이 작업은 되돌릴 수 없습니다. 사용자 '{selectedUser?.name}'을(를) 영구적으로 삭제합니다.
+              이 작업은 되돌릴 수 없습니다. 유저 '{selectedUser?.name}'을(를) 영구적으로 삭제합니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
