@@ -1,4 +1,3 @@
-
 "use client";
 
 import { signIn, useSession } from "next-auth/react";
@@ -44,7 +43,7 @@ export default function SignupPage() {
     setIsGoogleLoading(true);
     setError(null);
     try {
-      const res = await signIn("google", { callbackUrl: "/onboarding", redirect: true });
+      const res = await signIn("google", { callbackUrl: "/", redirect: true });
       if (res?.error) {
         const errMessage = res.error === "Callback" 
           ? "新規登録がキャンセルされたか失敗しました。もう一度お試しください。" 
