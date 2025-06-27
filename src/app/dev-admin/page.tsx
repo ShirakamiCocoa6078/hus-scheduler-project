@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, RefreshCcw, Database, ServerCrash, User as UserIcon, MoreVertical, Pencil, Archive, Trash2 } from "lucide-react";
+import { Loader2, RefreshCcw, Database, ServerCrash, User as UserIcon, MoreVertical, Pencil, Archive, Trash2, TrainFront, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import {
   Table,
@@ -45,6 +45,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 
 // Represents a subset of the Prisma User model for display
@@ -68,6 +71,12 @@ export default function DevAdminPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editFormData, setEditFormData] = useState({ name: "", email: "" });
+
+  const [transitOrigin, setTransitOrigin] = useState("札幌市手稲区前田７条１５丁目４−１");
+  const [isCalculatingTransit, setIsCalculatingTransit] = useState(false);
+  const [transitError, setTransitError] = useState<string | null>(null);
+  const [transitResponse, setTransitResponse] = useState<{ formattedRoute: any; rawResponse: any } | null>(null);
+
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -172,6 +181,34 @@ export default function DevAdminPage() {
       toast({ title: "エラー", description: `削除失敗: ${message}`, variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+  
+  const handleCalculateTransit = async () => {
+    setIsCalculatingTransit(true);
+    setTransitError(null);
+    setTransitResponse(null);
+    try {
+      const response = await fetch('/api/dev/transit-route', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origin: transitOrigin, departureTime: 'now' }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to calculate route.');
+      }
+      
+      setTransitResponse(data);
+
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "An unknown error occurred.";
+      setTransitError(message);
+      toast({ title: "Transit API Error", description: message, variant: 'destructive' });
+    } finally {
+      setIsCalculatingTransit(false);
     }
   };
 
@@ -303,6 +340,61 @@ export default function DevAdminPage() {
             このページはUserモデルのデータを表示しています。関連するAccountやSessionモデルのデータは含まれていません。
           </p>
       </div>
+
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle className="text-xl font-bold text-primary flex items-center">
+            <TrainFront className="mr-3 h-6 w-6" />
+            Transit Route Algorithm Test
+          </CardTitle>
+          <CardDescription>
+            Test the Google Maps Directions API integration for calculating transit routes to HUS.
+            API Key from `process.env.Maps_API_KEY` will be used.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="transit-origin">Origin Address</Label>
+            <Input 
+              id="transit-origin"
+              value={transitOrigin}
+              onChange={(e) => setTransitOrigin(e.target.value)}
+              placeholder="e.g., 札幌市手稲区前田７条１５丁目４−１"
+            />
+          </div>
+          <Button onClick={handleCalculateTransit} disabled={isCalculatingTransit}>
+            {isCalculatingTransit && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Calculate Route
+          </Button>
+          {transitError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{transitError}</AlertDescription>
+            </Alert>
+          )}
+          {transitResponse && (
+            <Accordion type="single" collapsible className="w-full mt-4">
+              <AccordionItem value="formatted">
+                <AccordionTrigger>Formatted Route Output</AccordionTrigger>
+                <AccordionContent>
+                  <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
+                    <code>{JSON.stringify(transitResponse.formattedRoute, null, 2)}</code>
+                  </pre>
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="raw">
+                <AccordionTrigger>Raw Google Maps API Response</AccordionTrigger>
+                <AccordionContent>
+                  <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
+                    <code>{JSON.stringify(transitResponse.rawResponse, null, 2)}</code>
+                  </pre>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Edit User Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
