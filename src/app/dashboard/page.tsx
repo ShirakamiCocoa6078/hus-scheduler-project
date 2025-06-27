@@ -4,15 +4,18 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
+import Image from "next/image";
+import { Loader2, LayoutDashboard } from "lucide-react";
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status";
 import { CourseScheduleWidget } from "@/components/dashboard/course-schedule-widget";
 import { TaskManagementWidget } from "@/components/dashboard/task-management-widget";
 import { WeatherWidget } from "@/components/dashboard/weather-widget";
 import { TransitInformationWidget } from "@/components/dashboard/transit-information-widget";
-import { Loader2, LayoutDashboard } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import Image from "next/image"; // Added Image import
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
+// WidgetSkeleton을 DashboardPage 컴포넌트 밖으로 이동시켜 불필요한 재정의를 방지합니다.
 const WidgetSkeleton = () => (
   <Card className="shadow-lg">
     <CardHeader>
@@ -26,7 +29,6 @@ const WidgetSkeleton = () => (
     </CardContent>
   </Card>
 );
-
 
 export default function DashboardPage() {
   const { data: session, status: authStatus } = useSession();
@@ -113,10 +115,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-// Dummy Card components
-const Card = ({ className, children }: {className?: string, children: React.ReactNode}) => <div className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)}>{children}</div>;
-const CardHeader = ({ className, children }: {className?: string, children: React.ReactNode}) => <div className={cn("flex flex-col space-y-1.5 p-6", className)}>{children}</div>;
-const CardTitle = ({ className, children }: {className?: string, children: React.ReactNode}) => <h3 className={cn("text-2xl font-semibold leading-none tracking-tight", className)}>{children}</h3>;
-const CardContent = ({ className, children }: {className?: string, children: React.ReactNode}) => <div className={cn("p-6 pt-0", className)}>{children}</div>;
-import { cn } from "@/lib/utils"; 
