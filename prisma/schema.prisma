@@ -1,14 +1,13 @@
-
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-generator client {
-  provider = "prisma-client-js"
-}
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
 }
 
 model User {
@@ -17,11 +16,9 @@ model User {
   email           String?   @unique
   emailVerified   DateTime?
   image           String?
-  
-  // Custom fields for this application
   onboardingData  Json?
   isSetupComplete Boolean   @default(false)
-
+  archived        Boolean   @default(false)
   accounts        Account[]
   sessions        Session[]
 }
