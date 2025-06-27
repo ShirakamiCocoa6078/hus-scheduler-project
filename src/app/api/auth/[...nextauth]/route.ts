@@ -36,43 +36,100 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ account, profile }) {
-      if (account?.provider === "google") {
-        if (profile?.email && profile.email.endsWith("@stu.hus.ac.jp")) {
+      console.log("--- signIn Callback Start ---");
+      try {
+        console.log("Account:", account);
+        console.log("Profile:", profile);
+
+        if (account?.provider !== "google") {
+          console.log("Provider is not Google, blocking sign in.");
+          return false;
+        }
+
+        if (!profile?.email) {
+            console.log("Google profile does not contain an email.");
+            return '/login?error=NoEmailFromProvider';
+        }
+
+        if (profile.email.endsWith("@stu.hus.ac.jp")) {
+          console.log("Domain match success for:", profile.email);
+          console.log("--- signIn Callback End (Success) ---");
           return true;
         } else {
-          console.log("HUSドメイン不一致 (Google): ", profile?.email);
+          console.warn("Domain mismatch for:", profile.email);
+          console.log("--- signIn Callback End (Failure) ---");
           return '/login?error=DomainMismatch';
         }
+      } catch (error) {
+        console.error("Error in signIn callback:", error);
+        console.log("--- signIn Callback End (Error) ---");
+        return false;
       }
-      return false; // Block other providers
     },
 
-    async jwt({ token }) {
-      if (token.email) {
-        const dbUser = await prisma.user.findUnique({
-          where: { email: token.email },
-        });
-        if (dbUser) {
-          token.id = dbUser.id;
-          token.name = dbUser.name;
-          token.picture = dbUser.image;
-          // Here we cast to `any` because the default Prisma User model doesn't have `onboardingData` by default.
-          // We assume it's added as a JSON field in `schema.prisma`.
-          token.onboardingData = (dbUser as any).onboardingData;
+    async jwt({ token, user, account }) {
+      console.log("--- jwt Callback Start ---");
+      try {
+        console.log("Incoming JWT:", token);
+        console.log("User object (only available on first sign-in):", user);
+        console.log("Account object (only available on first sign-in):", account);
+
+        // Persist the user's ID to the token right after signin
+        if (account && user) {
+          console.log("First sign-in detected. Augmenting token with user ID.");
+          token.id = user.id;
         }
+
+        // After the initial sign-in, we fetch user data from DB to keep the token updated
+        if (token.email) {
+          console.log(`Fetching user data from DB for email: ${token.email}`);
+          const dbUser = await prisma.user.findUnique({
+            where: { email: token.email },
+          });
+
+          if (dbUser) {
+            console.log("User found in DB:", dbUser);
+            token.id = dbUser.id;
+            token.name = dbUser.name;
+            token.picture = dbUser.image;
+            token.onboardingData = (dbUser as any).onboardingData;
+            console.log("Augmented token with DB data:", token);
+          } else {
+             console.warn(`User with email ${token.email} not found in DB during JWT callback.`);
+          }
+        }
+        console.log("--- jwt Callback End ---");
+        return token;
+      } catch(error) {
+         console.error("Error in jwt callback:", error);
+         console.log("--- jwt Callback End (Error) ---");
+         return token; // Return original token on error
       }
-      return token;
     },
 
     async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string;
-        session.user.name = token.name;
-        session.user.email = token.email as string;
-        session.user.image = token.picture;
-        session.user.onboardingData = token.onboardingData as any;
+      console.log("--- session Callback Start ---");
+      try {
+        console.log("Incoming session:", session);
+        console.log("Token for session:", token);
+
+        if (token && session.user) {
+          session.user.id = token.id as string;
+          session.user.name = token.name;
+          session.user.email = token.email as string;
+          session.user.image = token.picture;
+          session.user.onboardingData = token.onboardingData as any;
+          console.log("Final session object:", session);
+        } else {
+           console.warn("Token or session.user is missing.");
+        }
+        console.log("--- session Callback End ---");
+        return session;
+      } catch (error) {
+         console.error("Error in session callback:", error);
+         console.log("--- session Callback End (Error) ---");
+         return session; // Return original session on error
       }
-      return session;
     },
   },
   pages: {
