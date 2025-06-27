@@ -32,9 +32,10 @@ async function saveUsers(users: User[]): Promise<void> {
   try {
     await fs.writeFile(tempDataPath, JSON.stringify(users, null, 2), 'utf-8');
   } catch (error) {
-    console.warn("Failed to write to tempData.json. This is expected in a serverless environment.", error);
-    // サーバーレス環境では、ファイルシステムへの書き込みが失敗する可能性があります。
-    // 警告をログに記録しますが、フローを続行するためにエラーはスローしません。
+    console.error("tempData.jsonへの書き込みに失敗:", error);
+    // エラーを再スローして、呼び出し元のAPIハンドラでキャッチできるようにします。
+    // これにより、クライアントに明確なエラーが返されます。
+    throw new Error("ユーザーデータの保存に失敗しました。サーバーレス環境ではファイル書き込みができない場合があります。");
   }
 }
 
@@ -50,8 +51,9 @@ export async function DELETE(request: NextRequest) {
     const updatedUsers = users.filter(u => u.id !== session.user?.id);
 
     if (users.length === updatedUsers.length) {
-      // ユーザーが見つからなかった場合（ありえないはずだが念のため）
-      return NextResponse.json({ message: 'ユーザーが見つかりませんでした。' }, { status: 404 });
+      // この状況は、ユーザーが既に削除されているがセッションが残っている場合などに発生する可能性があります。
+      console.warn(`削除試行エラー: ユーザーID ${session.user.id} が見つかりませんでした。`);
+      return NextResponse.json({ message: '削除対象のユーザーが見つかりませんでした。' }, { status: 404 });
     }
 
     await saveUsers(updatedUsers);
