@@ -53,7 +53,7 @@ async function getCoordinates(
   const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
     address
   )}&key=${apiKey}&language=ko`;
-  logs.push(`[DEBUG] Geocoding URL for "${address}": ${geocodeUrl}`);
+  logs.push(`[DEBUG] Geocoding URL for "${address}": ${geocodeUrl.replace(apiKey, 'REDACTED')}`);
   try {
     const response = await fetch(geocodeUrl);
     const data = await response.json();
@@ -92,7 +92,7 @@ async function getCoordinates(
 
 export async function POST(request: NextRequest) {
   const debugLogs: string[] = [];
-  debugLogs.push('[DEBUG] /api/dev/transit-route POST handler started (v7 - Real Time Logic).');
+  debugLogs.push('[DEBUG] /api/dev/transit-route POST handler started.');
 
   let body;
   try {
@@ -148,13 +148,12 @@ export async function POST(request: NextRequest) {
           origin: originParam,
           destination: destinationParam,
           mode: 'transit',
-          departure_time: 'now',
           key: apiKey,
           language: 'ko',
           region: 'jp',
       });
       const predictionApiUrl = `https://maps.googleapis.com/maps/api/directions/json?${predictionParams.toString()}`;
-      debugLogs.push(`[DEBUG] Step 1 (Prediction) URL: ${predictionApiUrl}`);
+      debugLogs.push(`[DEBUG] Step 1 (Prediction) URL: ${predictionApiUrl.replace(apiKey, 'REDACTED')}`);
 
       const predictionResponse = await fetch(predictionApiUrl);
       const predictionData = await predictionResponse.json();
@@ -206,7 +205,7 @@ export async function POST(request: NextRequest) {
           region: 'jp',
       });
       const finalApiUrl = `https://maps.googleapis.com/maps/api/directions/json?${finalParams.toString()}`;
-      debugLogs.push(`[DEBUG] Step 3 (Finalization) URL: ${finalApiUrl}`);
+      debugLogs.push(`[DEBUG] Step 3 (Finalization) URL: ${finalApiUrl.replace(apiKey, 'REDACTED')}`);
       
       const finalApiResponse = await fetch(finalApiUrl);
       const finalRawData = await finalApiResponse.json();
@@ -279,7 +278,7 @@ export async function POST(request: NextRequest) {
       debugLogs.push(`[DEBUG] Using explicit current timestamp for departure_time: ${departureTimestamp}`);
       
       const apiUrl = `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`;
-      debugLogs.push(`[DEBUG] Final Google Maps API URL for 'From School': ${apiUrl}`);
+      debugLogs.push(`[DEBUG] Final Google Maps API URL for 'From School': ${apiUrl.replace(apiKey, 'REDACTED')}`);
 
       const apiResponse = await fetch(apiUrl);
       const rawData = await apiResponse.json();

@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, RefreshCcw, Database, ServerCrash, User as UserIcon, MoreVertical, Pencil, Archive, Trash2, TrainFront, AlertTriangle, Clock, Calendar as CalendarIcon, School, Home } from "lucide-react";
+import { Loader2, RefreshCcw, Database, ServerCrash, User as UserIcon, MoreVertical, Pencil, Archive, Trash2, Train, Bus, Footprints, Clock, School, Home, AlertTriangle, Workflow } from "lucide-react";
 import Link from "next/link";
 import {
   Table,
@@ -74,20 +74,19 @@ export default function DevAdminPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editFormData, setEditFormData] = useState({ name: "", email: "" });
 
-  // State for "To School" (등교) simulation
-  const [toSchoolOrigin, setToSchoolOrigin] = useState("札幌駅");
-  const [toSchoolDay, setToSchoolDay] = useState<string>("월요일");
+  // --- NEW: State for Fixed Route Simulation ---
+  const [toSchoolStation, setToSchoolStation] = useState("sapporo_station");
   const [toSchoolPeriod, setToSchoolPeriod] = useState("1"); // 1교시
+  const [toSchoolDayType, setToSchoolDayType] = useState("weekday");
   const [isCalculatingToSchool, setIsCalculatingToSchool] = useState(false);
+  const [toSchoolResult, setToSchoolResult] = useState<any>(null);
   const [toSchoolError, setToSchoolError] = useState<string | null>(null);
-  const [toSchoolResponse, setToSchoolResponse] = useState<any | null>(null);
 
-  // State for "From School" (귀가) simulation
-  const [fromSchoolDest, setFromSchoolDest] = useState("札幌駅");
+  const [fromSchoolStation, setFromSchoolStation] = useState("sapporo_station");
   const [isCalculatingFromSchool, setIsCalculatingFromSchool] = useState(false);
+  const [fromSchoolResult, setFromSchoolResult] = useState<any[] | null>(null);
   const [fromSchoolError, setFromSchoolError] = useState<string | null>(null);
-  const [fromSchoolResponse, setFromSchoolResponse] = useState<any | null>(null);
-  
+
   const fetchData = async () => {
     setIsLoading(true);
     setError(null);
@@ -186,84 +185,90 @@ export default function DevAdminPage() {
       setUsers(users.filter(u => u.id !== selectedUser.id));
       toast({ title: "성공", description: "유저를 삭제했습니다." });
       setIsDeleteDialogOpen(false);
-    } catch (err)
- {
+    } catch (err) {
       const message = err instanceof Error ? err.message : "An unknown error occurred.";
       toast({ title: "에러", description: `삭제 실패: ${message}`, variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
   };
-  
+
+  // --- NEW: Fixed Route Handlers ---
+
   const handleCalculateToSchool = async () => {
     setIsCalculatingToSchool(true);
     setToSchoolError(null);
-    setToSchoolResponse(null);
+    setToSchoolResult(null);
+
+    const periodTimes: { [key: string]: string } = {
+      '1': "09:00", '2': "10:30", '3': "13:00",
+      '4': "14:40", '5': "16:20",
+    };
 
     try {
-      const response = await fetch('/api/dev/transit-route', {
+      const response = await fetch('/api/calculate-fixed-route', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          origin: toSchoolOrigin,
-          day: toSchoolDay,
-          period: toSchoolPeriod,
+          type: 'to_school',
+          originStation: toSchoolStation,
+          arrivalDeadlineStr: periodTimes[toSchoolPeriod],
+          dayType: toSchoolDayType,
         }),
       });
       const data = await response.json();
-
-      if (data.debugLogs && Array.isArray(data.debugLogs)) {
-        console.groupCollapsed("Server-side logs for 등교 시뮬레이션 (클릭하여 확장)");
-        data.debugLogs.forEach((log: string) => console.log(log));
-        console.groupEnd();
-      }
-
       if (!response.ok) {
-        throw new Error(data.message || '경로 계산에 실패했습니다.');
+        throw new Error(data.message || '고정 경로 계산에 실패했습니다.');
       }
-      setToSchoolResponse(data);
+      setToSchoolResult(data);
     } catch (err) {
       const message = err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.";
       setToSchoolError(message);
-      toast({ title: "경로 탐색 API 에러", description: message, variant: 'destructive' });
+      toast({ title: "등교 경로 계산 에러", description: message, variant: 'destructive' });
     } finally {
       setIsCalculatingToSchool(false);
     }
   };
-  
+
   const handleCalculateFromSchool = async () => {
     setIsCalculatingFromSchool(true);
     setFromSchoolError(null);
-    setFromSchoolResponse(null);
+    setFromSchoolResult(null);
+
+    const today = new Date();
+    const day = today.getDay(); // 0 = Sunday, 6 = Saturday
+    const currentDayType = (day === 0 || day === 6) ? 'weekend' : 'weekday';
+
     try {
-      const response = await fetch('/api/dev/transit-route', {
+      const response = await fetch('/api/calculate-fixed-route', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          destination: fromSchoolDest,
+          type: 'from_school',
+          destinationStation: fromSchoolStation,
+          dayType: currentDayType,
         }),
       });
       const data = await response.json();
-
-      if (data.debugLogs && Array.isArray(data.debugLogs)) {
-        console.groupCollapsed("Server-side logs for 귀가 시뮬레이션 (클릭하여 확장)");
-        data.debugLogs.forEach((log: string) => console.log(log));
-        console.groupEnd();
+       if (!response.ok) {
+        throw new Error(data.message || '고정 경로 계산에 실패했습니다.');
       }
-
-      if (!response.ok) {
-        throw new Error(data.message || '경로 계산에 실패했습니다.');
-      }
-      setFromSchoolResponse(data);
+      setFromSchoolResult(data);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.";
-      setFromSchoolError(message);
-      toast({ title: "경로 탐색 API 에러", description: message, variant: 'destructive' });
+       const message = err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.";
+       setFromSchoolError(message);
+       toast({ title: "귀가 경로 계산 에러", description: message, variant: 'destructive' });
     } finally {
       setIsCalculatingFromSchool(false);
     }
   };
 
+  const StepIcon = ({ type }: { type: string }) => {
+    if (type === 'TRAIN') return <Train className="h-5 w-5 text-primary" />;
+    if (type === 'BUS') return <Bus className="h-5 w-5 text-primary" />;
+    if (type === 'WALK') return <Footprints className="h-5 w-5 text-primary" />;
+    return null;
+  }
 
   return (
     <div className="container mx-auto p-4 md:p-8 bg-background">
@@ -276,8 +281,141 @@ export default function DevAdminPage() {
           <Link href="/login">로그인 페이지로 돌아가기</Link>
         </Button>
       </div>
+      
+      {/* Fixed Route Simulation Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl font-bold text-primary flex items-center">
+              <School className="mr-3 h-6 w-6" />
+              등교 시뮬레이션 (고정 경로)
+            </CardTitle>
+            <CardDescription>
+              내부 시간표(timetable.json) 기반으로 최신 출발 시간을 계산합니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-2 sm:col-span-1">
+                <Label htmlFor="to-school-station">출발역</Label>
+                <Select value={toSchoolStation} onValueChange={setToSchoolStation}>
+                  <SelectTrigger id="to-school-station"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="sapporo_station">札幌駅</SelectItem></SelectContent>
+                </Select>
+              </div>
+               <div className="space-y-2 sm:col-span-1">
+                <Label htmlFor="to-school-period">목표 교시</Label>
+                <Select value={toSchoolPeriod} onValueChange={setToSchoolPeriod}>
+                  <SelectTrigger id="to-school-period"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1교시 (09:00)</SelectItem>
+                    <SelectItem value="2">2교시 (10:30)</SelectItem>
+                    <SelectItem value="3">3교시 (13:00)</SelectItem>
+                    <SelectItem value="4">4교시 (14:40)</SelectItem>
+                    <SelectItem value="5">5교시 (16:20)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 sm:col-span-1">
+                <Label htmlFor="to-school-daytype">요일</Label>
+                 <Select value={toSchoolDayType} onValueChange={setToSchoolDayType}>
+                  <SelectTrigger id="to-school-daytype"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekday">평일</SelectItem>
+                    <SelectItem value="weekend">주말/공휴일</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button onClick={handleCalculateToSchool} disabled={isCalculatingToSchool} className="w-full">
+              {isCalculatingToSchool ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clock className="mr-2 h-4 w-4" />}
+              최신 출발 시간 계산
+            </Button>
+             {toSchoolError && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{toSchoolError}</AlertDescription></Alert>}
+             {toSchoolResult && (
+                <div className="p-4 border rounded-lg bg-muted/50 space-y-3">
+                    <div className="text-center">
+                        <p className="text-sm text-muted-foreground">권장 출발 시각</p>
+                        <p className="text-2xl font-bold text-primary">{toSchoolResult.recommendedDepartureTime}</p>
+                        <p className="text-sm text-muted-foreground">예상 도착: {toSchoolResult.finalArrivalTime}</p>
+                    </div>
+                    <div className="space-y-2">
+                        {toSchoolResult.steps.map((step: any, index: number) => (
+                            <div key={index} className="flex items-start space-x-3 p-2 rounded-md bg-background">
+                                <StepIcon type={step.type} />
+                                <div className="flex-1">
+                                    <p className="font-semibold">{step.type === 'WALK' ? '도보 이동' : `${step.line} ${step.type}`}</p>
+                                    <p className="text-sm">{step.from} → {step.to}</p>
+                                    {step.departureTime && <p className="text-xs text-muted-foreground">{step.departureTime} - {step.arrivalTime} ({step.duration}분)</p>}
+                                    {step.realtime_info && <p className={cn("text-xs", step.realtime_info.delay_minutes > 0 ? "text-destructive" : "text-green-600")}>({step.realtime_info.status})</p>}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+             )}
+          </CardContent>
+        </Card>
 
-      <div className="flex items-center justify-between mb-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl font-bold text-primary flex items-center">
+              <Home className="mr-3 h-6 w-6" />
+              귀가 시뮬레이션 (고정 경로)
+            </CardTitle>
+            <CardDescription>
+              현재 시각 이후의 출발 경로 3개를 timetable.json에서 조회합니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+             <div className="space-y-2">
+              <Label htmlFor="from-school-station">도착역</Label>
+              <Select value={fromSchoolStation} onValueChange={setFromSchoolStation}>
+                  <SelectTrigger id="from-school-station"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="sapporo_station">札幌駅</SelectItem></SelectContent>
+                </Select>
+            </div>
+            <Button onClick={handleCalculateFromSchool} disabled={isCalculatingFromSchool} className="w-full">
+               {isCalculatingFromSchool ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clock className="mr-2 h-4 w-4" />}
+              다음 출발편 조회
+            </Button>
+             {fromSchoolError && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{fromSchoolError}</AlertDescription></Alert>}
+             {fromSchoolResult && (
+                <Accordion type="single" collapsible className="w-full">
+                    {fromSchoolResult.map((route, index) => (
+                        <AccordionItem key={index} value={`item-${index}`}>
+                            <AccordionTrigger>
+                                <div className="flex justify-between w-full pr-4">
+                                    <span>출발: {route.departureFromSchoolTime}</span>
+                                    <span>도착: {route.finalArrivalTime}</span>
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                                <div className="space-y-2">
+                                    {route.steps.map((step: any, stepIndex: number) => (
+                                        <div key={stepIndex} className="flex items-start space-x-3 p-2 rounded-md bg-background">
+                                            <StepIcon type={step.type} />
+                                            <div className="flex-1">
+                                                <p className="font-semibold">{step.type === 'WALK' ? '도보 이동' : `${step.line} ${step.type}`}</p>
+                                                <p className="text-sm">{step.from} → {step.to}</p>
+                                                {step.departureTime && <p className="text-xs text-muted-foreground">{step.departureTime} - {step.arrivalTime} ({step.duration}분)</p>}
+                                                {step.realtime_info && <p className={cn("text-xs", step.realtime_info.delay_minutes > 0 ? "text-destructive" : "text-green-600")}>({step.realtime_info.status})</p>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                    ))}
+                </Accordion>
+             )}
+          </CardContent>
+        </Card>
+      </div>
+
+
+      {/* User Data Table Section */}
+      <div className="flex items-center justify-between mb-4 mt-8">
         <p className="text-muted-foreground">
           데이터베이스에서 직접 가져온 현재 사용자 데이터입니다.
         </p>
@@ -371,150 +509,6 @@ export default function DevAdminPage() {
             </TableBody>
           </Table>
         )}
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl font-bold text-primary flex items-center">
-              <School className="mr-3 h-6 w-6" />
-              등교 시뮬레이션 (요일 기준)
-            </CardTitle>
-            <CardDescription>
-              다음 주 특정 요일의 수업에 맞춰 도착하기 위한 일반적인 출발 시간을 계산합니다.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="to-school-origin">출발지</Label>
-              <Input 
-                id="to-school-origin"
-                value={toSchoolOrigin}
-                onChange={(e) => setToSchoolOrigin(e.target.value)}
-                placeholder="예: 札幌駅"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="to-school-day">목표 요일</Label>
-                <Select value={toSchoolDay} onValueChange={setToSchoolDay}>
-                  <SelectTrigger id="to-school-day">
-                    <SelectValue placeholder="요일 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="월요일">월요일</SelectItem>
-                    <SelectItem value="화요일">화요일</SelectItem>
-                    <SelectItem value="수요일">수요일</SelectItem>
-                    <SelectItem value="목요일">목요일</SelectItem>
-                    <SelectItem value="금요일">금요일</SelectItem>
-                    <SelectItem value="토요일">토요일</SelectItem>
-                    <SelectItem value="일요일">일요일</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="to-school-period">목표 교시</Label>
-                <Select value={toSchoolPeriod} onValueChange={setToSchoolPeriod}>
-                  <SelectTrigger id="to-school-period">
-                    <SelectValue placeholder="교시 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">1교시 (09:00)</SelectItem>
-                    <SelectItem value="2">2교시 (10:30)</SelectItem>
-                    <SelectItem value="3">3교시 (13:00)</SelectItem>
-                    <SelectItem value="4">4교시 (14:40)</SelectItem>
-                    <SelectItem value="5">5교시 (16:20)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <Button onClick={handleCalculateToSchool} disabled={isCalculatingToSchool} className="w-full">
-              {isCalculatingToSchool && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              최신 출발 시간 계산
-            </Button>
-            {toSchoolError && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>에러</AlertTitle>
-                <AlertDescription>{toSchoolError}</AlertDescription>
-              </Alert>
-            )}
-            {toSchoolResponse && (
-              <Accordion type="single" collapsible className="w-full mt-4">
-                <AccordionItem value="formatted">
-                  <AccordionTrigger>포맷된 경로 결과</AccordionTrigger>
-                  <AccordionContent>
-                    <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
-                      <code>{JSON.stringify(toSchoolResponse.formattedRoute, null, 2)}</code>
-                    </pre>
-                  </AccordionContent>
-                </AccordionItem>
-                <AccordionItem value="raw">
-                  <AccordionTrigger>원본 Google Maps API 응답</AccordionTrigger>
-                  <AccordionContent>
-                    <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
-                      <code>{JSON.stringify(toSchoolResponse.rawResponse, null, 2)}</code>
-                    </pre>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-            )}
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl font-bold text-primary flex items-center">
-              <Home className="mr-3 h-6 w-6" />
-              귀가 시뮬레이션 (현재 출발 기준)
-            </CardTitle>
-            <CardDescription>
-              현재 시각에 학교에서 출발하는 가장 빠른 경로를 계산합니다.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="from-school-dest">도착지</Label>
-              <Input 
-                id="from-school-dest"
-                value={fromSchoolDest}
-                onChange={(e) => setFromSchoolDest(e.target.value)}
-                placeholder="예: 札幌駅"
-              />
-            </div>
-            <Button onClick={handleCalculateFromSchool} disabled={isCalculatingFromSchool} className="w-full">
-              {isCalculatingFromSchool && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              현재 시간으로 경로 계산
-            </Button>
-            {fromSchoolError && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>에러</AlertTitle>
-                <AlertDescription>{fromSchoolError}</AlertDescription>
-              </Alert>
-            )}
-            {fromSchoolResponse && (
-              <Accordion type="single" collapsible className="w-full mt-4">
-                <AccordionItem value="formatted-arrival">
-                  <AccordionTrigger>포맷된 경로 결과</AccordionTrigger>
-                  <AccordionContent>
-                    <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
-                      <code>{JSON.stringify(fromSchoolResponse.formattedRoute, null, 2)}</code>
-                    </pre>
-                  </AccordionContent>
-                </AccordionItem>
-                <AccordionItem value="raw-arrival">
-                  <AccordionTrigger>원본 Google Maps API 응답</AccordionTrigger>
-                  <AccordionContent>
-                    <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 overflow-x-auto text-white">
-                      <code>{JSON.stringify(fromSchoolResponse.rawResponse, null, 2)}</code>
-                    </pre>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       {/* Edit User Dialog */}
