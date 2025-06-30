@@ -1,5 +1,3 @@
-# Firebase Studio
+HUS schedule reminder&viewer project
 
-This is a NextJS starter in Firebase Studio.
-
-To get started, take a look at src/app/page.tsx.
+https://hus-scheduler-project.vercel.app/login
