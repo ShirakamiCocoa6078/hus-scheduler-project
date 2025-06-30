@@ -69,7 +69,7 @@ async function getPlaceId(address: string, apiKey: string, logs: string[]): Prom
 
 export async function POST(request: NextRequest) {
   const debugLogs: string[] = [];
-  debugLogs.push('[DEBUG] /api/dev/transit-route POST handler started (v3 with Place ID).');
+  debugLogs.push('[DEBUG] /api/dev/transit-route POST handler started (v4 with 3-step logic).');
 
   let body;
   try {
@@ -96,158 +96,193 @@ export async function POST(request: NextRequest) {
   const isToSchool = !!arrivalTime;
 
   try {
-    let originForApi: string;
-    let destinationForApi: string;
-
     if (isToSchool) {
-        if (!origin) {
-            const errorMsg = 'Origin address is required for "to school" route.';
-            debugLogs.push(`[DEBUG] Validation failed: ${errorMsg}`);
-            return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
-        }
-        debugLogs.push(`[DEBUG] Mode: To School. Getting Place IDs for Origin ("${origin}") and University ("${universityAddress}").`);
-        const [originPlaceId, uniPlaceId] = await Promise.all([
-            getPlaceId(origin, apiKey, debugLogs),
-            getPlaceId(universityAddress, apiKey, debugLogs)
-        ]);
+      // --- 'To School' Logic using 3-step algorithm ---
+      if (!origin) {
+          const errorMsg = 'Origin address is required for "to school" route.';
+          debugLogs.push(`[DEBUG] Validation failed: ${errorMsg}`);
+          return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
+      }
+      
+      debugLogs.push(`[DEBUG] Mode: To School (3-step algorithm). Getting Place IDs for Origin ("${origin}") and University ("${universityAddress}").`);
+      const [originPlaceId, uniPlaceId] = await Promise.all([
+          getPlaceId(origin, apiKey, debugLogs),
+          getPlaceId(universityAddress, apiKey, debugLogs)
+      ]);
 
-        if (!originPlaceId || !uniPlaceId) {
-            const errorMsg = 'Could not find Place ID for origin or university. Check addresses.';
-            debugLogs.push(`[DEBUG] ${errorMsg}`);
-            return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
-        }
-        originForApi = `place_id:${originPlaceId}`;
-        destinationForApi = `place_id:${uniPlaceId}`;
-    } else { // From School
-        if (!destination) {
-            const errorMsg = 'Destination address is required for "from school" route.';
-            debugLogs.push(`[DEBUG] Validation failed: ${errorMsg}`);
-            return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
-        }
-        debugLogs.push(`[DEBUG] Mode: From School. Getting Place IDs for University ("${universityAddress}") and Destination ("${destination}").`);
-        const [uniPlaceId, destPlaceId] = await Promise.all([
-            getPlaceId(universityAddress, apiKey, debugLogs),
-            getPlaceId(destination, apiKey, debugLogs)
-        ]);
-        
-        if (!uniPlaceId || !destPlaceId) {
-            const errorMsg = 'Could not find Place ID for university or destination. Check addresses.';
-            debugLogs.push(`[DEBUG] ${errorMsg}`);
-            return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
-        }
-        originForApi = `place_id:${uniPlaceId}`;
-        destinationForApi = `place_id:${destPlaceId}`;
-    }
+      if (!originPlaceId || !uniPlaceId) {
+          const errorMsg = 'Could not find Place ID for origin or university. Check addresses.';
+          debugLogs.push(`[DEBUG] ${errorMsg}`);
+          return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
+      }
+      
+      // --- 1. Prediction Phase: Get average duration ---
+      debugLogs.push(`[DEBUG] Step 1: Predicting average travel time.`);
+      const predictionParams = new URLSearchParams({
+          origin: `place_id:${originPlaceId}`,
+          destination: `place_id:${uniPlaceId}`,
+          mode: 'transit',
+          departure_time: 'now',
+          key: apiKey,
+          language: 'ko',
+          region: 'jp',
+      });
+      const predictionApiUrl = `https://maps.googleapis.com/maps/api/directions/json?${predictionParams.toString()}`;
+      debugLogs.push(`[DEBUG] Step 1 (Prediction) URL: ${predictionApiUrl}`);
 
-    const params = new URLSearchParams({
-        origin: originForApi,
-        destination: destinationForApi,
+      const predictionResponse = await fetch(predictionApiUrl);
+      const predictionData = await predictionResponse.json();
+      debugLogs.push(`[DEBUG] Step 1 (Prediction) Raw Response: ${JSON.stringify(predictionData, null, 2)}`);
+
+      if (predictionData.status !== 'OK' || predictionData.routes.length === 0) {
+          const message = "경로의 평균 소요 시간을 예측할 수 없습니다. 출발지 또는 도착지를 다시 확인해주세요.";
+          debugLogs.push(`[DEBUG] Prediction failed with status: ${predictionData.status}`);
+          return NextResponse.json({ message, rawResponse: predictionData, debugLogs }, { status: 500 });
+      }
+      const avgDurationInSeconds = predictionData.routes[0].legs[0].duration.value;
+      debugLogs.push(`[DEBUG] Step 1 Result: Average duration is ${avgDurationInSeconds} seconds.`);
+
+      // --- 2. Calculation Phase: Calculate recommended departure time ---
+      debugLogs.push(`[DEBUG] Step 2: Calculating recommended departure time.`);
+      const arrivalDeadline = new Date(arrivalTime);
+      if (isNaN(arrivalDeadline.getTime())) {
+          const errorMsg = 'Invalid arrivalTime format. Please provide an ISO 8601 string.';
+          debugLogs.push(`[DEBUG] Invalid arrivalTime received: ${arrivalTime}`);
+          return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
+      }
+      const recommendedDepartureTime = new Date(arrivalDeadline.getTime() - avgDurationInSeconds * 1000);
+      debugLogs.push(`[DEBUG] Arrival deadline is ${arrivalDeadline.toISOString()}. Recommended departure is ${recommendedDepartureTime.toISOString()}.`);
+      const recommendedDepartureTimestamp = Math.floor(recommendedDepartureTime.getTime() / 1000);
+
+      // --- 3. Finalization Phase: Get final route ---
+      debugLogs.push(`[DEBUG] Step 3: Finalizing route with recommended departure time.`);
+       const finalParams = new URLSearchParams({
+          origin: `place_id:${originPlaceId}`,
+          destination: `place_id:${uniPlaceId}`,
+          mode: 'transit',
+          departure_time: recommendedDepartureTimestamp.toString(),
+          key: apiKey,
+          language: 'ko',
+          region: 'jp',
+      });
+      const finalApiUrl = `https://maps.googleapis.com/maps/api/directions/json?${finalParams.toString()}`;
+      debugLogs.push(`[DEBUG] Step 3 (Finalization) URL: ${finalApiUrl}`);
+      
+      const finalApiResponse = await fetch(finalApiUrl);
+      const finalRawData = await finalApiResponse.json();
+      debugLogs.push(`[DEBUG] Step 3 (Finalization) Raw Response: ${JSON.stringify(finalRawData, null, 2)}`);
+      
+      if (finalRawData.status === "OK" && finalRawData.routes.length > 0) {
+          const leg = finalRawData.routes[0].legs[0];
+          const formattedResult = {
+              recommendedDepartureTime: recommendedDepartureTime.toISOString(),
+              finalDepartureTime: new Date(leg.departure_time.value * 1000).toISOString(),
+              finalArrivalTime: new Date(leg.arrival_time.value * 1000).toISOString(),
+              totalDuration: Math.round(leg.duration.value / 60),
+              steps: leg.steps.map(formatStep)
+          };
+          return NextResponse.json({ formattedRoute: formattedResult, rawResponse: finalRawData, debugLogs });
+      } else if (finalRawData.status === 'ZERO_RESULTS') {
+           const userMessage = "계산된 출발 시간에는 이용 가능한 대중교통 경로를 찾을 수 없습니다. 다른 날짜나 시간으로 다시 시도해 주세요.";
+           debugLogs.push(`[DEBUG] API returned ZERO_RESULTS on finalization call. Sending user-friendly message.`);
+           return NextResponse.json({ 
+               message: userMessage,
+               rawResponse: finalRawData,
+               debugLogs
+           }, { status: 404 });
+      } else {
+          const errorMessage = finalRawData.error_message || `API returned status: ${finalRawData.status}`;
+          const finalErrorMessage = "최종 경로 탐색 중 오류가 발생했습니다.";
+          debugLogs.push(`[DEBUG] API Error on finalization call: ${finalErrorMessage}. Details: ${errorMessage}`);
+          return NextResponse.json({ 
+              message: finalErrorMessage,
+              details: errorMessage,
+              rawResponse: finalRawData,
+              debugLogs
+          }, { status: 500 });
+      }
+
+    } else { 
+      // --- 'From School' Logic ---
+      if (!destination) {
+          const errorMsg = 'Destination address is required for "from school" route.';
+          debugLogs.push(`[DEBUG] Validation failed: ${errorMsg}`);
+          return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
+      }
+      debugLogs.push(`[DEBUG] Mode: From School. Getting Place IDs for University ("${universityAddress}") and Destination ("${destination}").`);
+      const [uniPlaceId, destPlaceId] = await Promise.all([
+          getPlaceId(universityAddress, apiKey, debugLogs),
+          getPlaceId(destination, apiKey, debugLogs)
+      ]);
+      
+      if (!uniPlaceId || !destPlaceId) {
+          const errorMsg = 'Could not find Place ID for university or destination. Check addresses.';
+          debugLogs.push(`[DEBUG] ${errorMsg}`);
+          return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
+      }
+
+      const params = new URLSearchParams({
+        origin: `place_id:${uniPlaceId}`,
+        destination: `place_id:${destPlaceId}`,
         mode: 'transit',
         language: 'ko',
         region: 'jp',
         key: apiKey,
-    });
+      });
 
-    if (isToSchool) {
-        debugLogs.push(`[DEBUG] Original arrivalTime string: ${arrivalTime}`);
-        const arrivalDate = new Date(arrivalTime);
+      if (departureTime && departureTime !== 'now') {
+          debugLogs.push(`[DEBUG] Original departureTime string: ${departureTime}`);
+          const departureDate = new Date(departureTime);
 
-        if (isNaN(arrivalDate.getTime())) {
-            const errorMsg = 'Invalid arrivalTime format. Please provide an ISO 8601 string.';
-            debugLogs.push(`[DEBUG] Invalid arrivalTime received: ${arrivalTime}`);
-            return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
-        }
+          if (isNaN(departureDate.getTime())) {
+              const errorMsg = 'Invalid departureTime format. Please provide an ISO 8601 string.';
+              debugLogs.push(`[DEBUG] Invalid departureTime received: ${departureTime}`);
+              return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
+          }
+          const departureTimestamp = Math.floor(departureDate.getTime() / 1000).toString();
+          debugLogs.push(`[DEBUG] Converted departure_time timestamp: ${departureTimestamp}`);
+          params.set('departure_time', departureTimestamp);
+      } else {
+          debugLogs.push('[DEBUG] Using "now" for departure_time.');
+          params.set('departure_time', Math.floor(Date.now() / 1000).toString());
+      }
+      
+      const apiUrl = `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`;
+      debugLogs.push(`[DEBUG] Final Google Maps API URL for 'From School': ${apiUrl}`);
 
-        debugLogs.push(`[DEBUG] Parsed arrivalTime Date object: ${arrivalDate.toISOString()}`);
-        const arrivalTimestamp = Math.floor(arrivalDate.getTime() / 1000);
-        debugLogs.push(`[DEBUG] Converted arrival_time timestamp: ${arrivalTimestamp}`);
-        params.set('arrival_time', arrivalTimestamp.toString());
-    } else { // From School
-        if (departureTime && departureTime !== 'now') {
-            debugLogs.push(`[DEBUG] Original departureTime string: ${departureTime}`);
-            const departureDate = new Date(departureTime);
+      const apiResponse = await fetch(apiUrl);
+      const rawData = await apiResponse.json();
+      debugLogs.push(`[DEBUG] Raw Google Maps API Response for 'From School': ${JSON.stringify(rawData, null, 2)}`);
 
-            if (isNaN(departureDate.getTime())) {
-                const errorMsg = 'Invalid departureTime format. Please provide an ISO 8601 string.';
-                debugLogs.push(`[DEBUG] Invalid departureTime received: ${departureTime}`);
-                return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
-            }
-
-            debugLogs.push(`[DEBUG] Parsed departureTime Date object: ${departureDate.toISOString()}`);
-            const departureTimestamp = Math.floor(departureDate.getTime() / 1000).toString();
-            debugLogs.push(`[DEBUG] Converted departure_time timestamp: ${departureTimestamp}`);
-            params.set('departure_time', departureTimestamp);
-        } else {
-            debugLogs.push('[DEBUG] Using "now" for departure_time.');
-            params.set('departure_time', Math.floor(Date.now() / 1000).toString());
-        }
+      if (rawData.status === "OK" && rawData.routes.length > 0) {
+          const route = rawData.routes[0];
+          const leg = route.legs[0];
+          const formattedResult = {
+            totalDuration: Math.round(leg.duration.value / 60),
+            estimatedArrivalTime: new Date(leg.arrival_time.value * 1000).toISOString(),
+            steps: leg.steps.map(formatStep),
+          };
+          return NextResponse.json({ formattedRoute: formattedResult, rawResponse: rawData, debugLogs });
+      } else if (rawData.status === 'ZERO_RESULTS') {
+          const userMessage = "선택하신 날짜와 시간에는 이용 가능한 대중교통 경로를 찾을 수 없습니다. 다른 날짜나 시간으로 다시 시도해 주세요.";
+          debugLogs.push(`[DEBUG] API returned ZERO_RESULTS. Sending user-friendly message.`);
+          return NextResponse.json({ 
+              message: userMessage,
+              rawResponse: rawData,
+              debugLogs
+          }, { status: 404 });
+      } else {
+          const errorMessage = rawData.error_message || `API returned status: ${rawData.status}`;
+          const finalErrorMessage = "경로 탐색 중 오류가 발생했습니다.";
+          debugLogs.push(`[DEBUG] API Error: ${finalErrorMessage}. Details: ${errorMessage}`);
+          return NextResponse.json({ 
+              message: finalErrorMessage,
+              details: errorMessage,
+              rawResponse: rawData,
+              debugLogs
+          }, { status: 500 });
+      }
     }
-
-    const apiUrl = `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`;
-    debugLogs.push(`[DEBUG] Final Google Maps API URL: ${apiUrl}`);
-
-    const apiResponse = await fetch(apiUrl);
-    const rawData = await apiResponse.json();
-    debugLogs.push(`[DEBUG] Raw Google Maps API Response: ${JSON.stringify(rawData, null, 2)}`);
-
-    if (rawData.status === "OK" && rawData.routes.length > 0) {
-        if (isToSchool) {
-            let bestRoute = null;
-            let latestDepartureTimestamp = 0;
-
-            for (const route of rawData.routes) {
-                const currentDepartureTimestamp = route.legs[0].departure_time.value;
-                if (currentDepartureTimestamp > latestDepartureTimestamp) {
-                    latestDepartureTimestamp = currentDepartureTimestamp;
-                    bestRoute = route;
-                }
-            }
-            
-            if (!bestRoute) {
-                const message = "Could not determine the best route.";
-                debugLogs.push(`[DEBUG] ${message}`);
-                return NextResponse.json({ message, rawResponse: rawData, debugLogs }, { status: 404 });
-            }
-            
-            const leg = bestRoute.legs[0];
-            const formattedResult = {
-                latestDepartureTime: new Date(leg.departure_time.value * 1000).toISOString(),
-                finalArrivalTime: new Date(leg.arrival_time.value * 1000).toISOString(),
-                totalDuration: Math.round(leg.duration.value / 60),
-                steps: leg.steps.map(formatStep)
-            };
-            return NextResponse.json({ formattedRoute: formattedResult, rawResponse: rawData, debugLogs });
-
-        } else { // From school
-            const route = rawData.routes[0];
-            const leg = route.legs[0];
-            const formattedResult = {
-              totalDuration: Math.round(leg.duration.value / 60),
-              estimatedArrivalTime: new Date(leg.arrival_time.value * 1000).toISOString(),
-              steps: leg.steps.map(formatStep),
-            };
-            return NextResponse.json({ formattedRoute: formattedResult, rawResponse: rawData, debugLogs });
-        }
-    } else if (rawData.status === 'ZERO_RESULTS') {
-        const userMessage = "선택하신 날짜와 시간에는 이용 가능한 대중교통 경로를 찾을 수 없습니다. 다른 날짜나 시간으로 다시 시도해 주세요.";
-        debugLogs.push(`[DEBUG] API returned ZERO_RESULTS. Sending user-friendly message.`);
-        return NextResponse.json({ 
-            message: userMessage,
-            rawResponse: rawData,
-            debugLogs
-        }, { status: 404 });
-    } else {
-        const errorMessage = rawData.error_message || `API returned status: ${rawData.status}`;
-        const finalErrorMessage = "경로 탐색 중 오류가 발생했습니다.";
-        debugLogs.push(`[DEBUG] API Error: ${finalErrorMessage}. Details: ${errorMessage}`);
-        return NextResponse.json({ 
-            message: finalErrorMessage,
-            details: errorMessage,
-            rawResponse: rawData,
-            debugLogs
-        }, { status: 500 });
-    }
-
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'An unknown server error occurred.';
     debugLogs.push(`[DEBUG] Error in main handler: ${errorMessage}`);
