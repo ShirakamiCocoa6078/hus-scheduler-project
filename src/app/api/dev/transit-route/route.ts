@@ -42,25 +42,46 @@ function formatStep(step: any): TransitStep {
     return baseStep as TransitStep;
 }
 
-// Helper function to get Place ID from an address
-async function getPlaceId(address: string, apiKey: string, logs: string[]): Promise<string | null> {
-  const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}&language=ko`;
+// Helper function to get coordinates from an address
+async function getCoordinates(
+  address: string,
+  apiKey: string,
+  logs: string[]
+): Promise<{ lat: number; lng: number } | null> {
+  const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+    address
+  )}&key=${apiKey}&language=ko`;
   logs.push(`[DEBUG] Geocoding URL for "${address}": ${geocodeUrl}`);
   try {
     const response = await fetch(geocodeUrl);
     const data = await response.json();
-    logs.push(`[DEBUG] Geocoding response for "${address}": ${JSON.stringify(data, null, 2)}`);
-    if (data.status === 'OK' && data.results[0]?.place_id) {
-      const placeId = data.results[0].place_id;
-      logs.push(`[DEBUG] Found Place ID for "${address}": ${placeId}`);
-      return placeId;
+    logs.push(
+      `[DEBUG] Geocoding response for "${address}": ${JSON.stringify(
+        data,
+        null,
+        2
+      )}`
+    );
+    if (data.status === 'OK' && data.results[0]?.geometry?.location) {
+      const location = data.results[0].geometry.location;
+      logs.push(
+        `[DEBUG] Found coordinates for "${address}": ${JSON.stringify(location)}`
+      );
+      return location;
     } else {
-      logs.push(`[DEBUG] Could not find Place ID for "${address}". Status: ${data.status}`);
+      logs.push(
+        `[DEBUG] Could not find coordinates for "${address}". Status: ${
+          data.status
+        }`
+      );
       return null;
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown geocoding error';
-    logs.push(`[DEBUG] Error fetching Place ID for "${address}": ${errorMessage}`);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown geocoding error';
+    logs.push(
+      `[DEBUG] Error fetching coordinates for "${address}": ${errorMessage}`
+    );
     console.error(`[DEBUG] Geocoding API error for "${address}":`, error);
     return null;
   }
@@ -69,7 +90,7 @@ async function getPlaceId(address: string, apiKey: string, logs: string[]): Prom
 
 export async function POST(request: NextRequest) {
   const debugLogs: string[] = [];
-  debugLogs.push('[DEBUG] /api/dev/transit-route POST handler started (v4 with 3-step logic).');
+  debugLogs.push('[DEBUG] /api/dev/transit-route POST handler started (v5 with coordinate-based logic).');
 
   let body;
   try {
@@ -97,30 +118,33 @@ export async function POST(request: NextRequest) {
 
   try {
     if (isToSchool) {
-      // --- 'To School' Logic using 3-step algorithm ---
+      // --- 'To School' Logic using 3-step algorithm with coordinates ---
       if (!origin) {
           const errorMsg = 'Origin address is required for "to school" route.';
           debugLogs.push(`[DEBUG] Validation failed: ${errorMsg}`);
           return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
       }
       
-      debugLogs.push(`[DEBUG] Mode: To School (3-step algorithm). Getting Place IDs for Origin ("${origin}") and University ("${universityAddress}").`);
-      const [originPlaceId, uniPlaceId] = await Promise.all([
-          getPlaceId(origin, apiKey, debugLogs),
-          getPlaceId(universityAddress, apiKey, debugLogs)
+      debugLogs.push(`[DEBUG] Mode: To School (3-step algorithm). Getting Coordinates for Origin ("${origin}") and University ("${universityAddress}").`);
+      const [originCoords, uniCoords] = await Promise.all([
+          getCoordinates(origin, apiKey, debugLogs),
+          getCoordinates(universityAddress, apiKey, debugLogs)
       ]);
 
-      if (!originPlaceId || !uniPlaceId) {
-          const errorMsg = 'Could not find Place ID for origin or university. Check addresses.';
+      if (!originCoords || !uniCoords) {
+          const errorMsg = 'Could not find coordinates for origin or university. Check addresses.';
           debugLogs.push(`[DEBUG] ${errorMsg}`);
           return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
       }
       
+      const originParam = `${originCoords.lat},${originCoords.lng}`;
+      const destinationParam = `${uniCoords.lat},${uniCoords.lng}`;
+
       // --- 1. Prediction Phase: Get average duration ---
       debugLogs.push(`[DEBUG] Step 1: Predicting average travel time.`);
       const predictionParams = new URLSearchParams({
-          origin: `place_id:${originPlaceId}`,
-          destination: `place_id:${uniPlaceId}`,
+          origin: originParam,
+          destination: destinationParam,
           mode: 'transit',
           departure_time: 'now',
           key: apiKey,
@@ -157,8 +181,8 @@ export async function POST(request: NextRequest) {
       // --- 3. Finalization Phase: Get final route ---
       debugLogs.push(`[DEBUG] Step 3: Finalizing route with recommended departure time.`);
        const finalParams = new URLSearchParams({
-          origin: `place_id:${originPlaceId}`,
-          destination: `place_id:${uniPlaceId}`,
+          origin: originParam,
+          destination: destinationParam,
           mode: 'transit',
           departure_time: recommendedDepartureTimestamp.toString(),
           key: apiKey,
@@ -203,27 +227,30 @@ export async function POST(request: NextRequest) {
       }
 
     } else { 
-      // --- 'From School' Logic ---
+      // --- 'From School' Logic with coordinates ---
       if (!destination) {
           const errorMsg = 'Destination address is required for "from school" route.';
           debugLogs.push(`[DEBUG] Validation failed: ${errorMsg}`);
           return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
       }
-      debugLogs.push(`[DEBUG] Mode: From School. Getting Place IDs for University ("${universityAddress}") and Destination ("${destination}").`);
-      const [uniPlaceId, destPlaceId] = await Promise.all([
-          getPlaceId(universityAddress, apiKey, debugLogs),
-          getPlaceId(destination, apiKey, debugLogs)
+      debugLogs.push(`[DEBUG] Mode: From School. Getting Coordinates for University ("${universityAddress}") and Destination ("${destination}").`);
+      const [uniCoords, destCoords] = await Promise.all([
+          getCoordinates(universityAddress, apiKey, debugLogs),
+          getCoordinates(destination, apiKey, debugLogs)
       ]);
       
-      if (!uniPlaceId || !destPlaceId) {
-          const errorMsg = 'Could not find Place ID for university or destination. Check addresses.';
+      if (!uniCoords || !destCoords) {
+          const errorMsg = 'Could not find coordinates for university or destination. Check addresses.';
           debugLogs.push(`[DEBUG] ${errorMsg}`);
           return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
       }
 
+      const originParam = `${uniCoords.lat},${uniCoords.lng}`;
+      const destinationParam = `${destCoords.lat},${destCoords.lng}`;
+
       const params = new URLSearchParams({
-        origin: `place_id:${uniPlaceId}`,
-        destination: `place_id:${destPlaceId}`,
+        origin: originParam,
+        destination: destinationParam,
         mode: 'transit',
         language: 'ko',
         region: 'jp',
