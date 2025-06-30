@@ -48,10 +48,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 
@@ -79,7 +76,7 @@ export default function DevAdminPage() {
 
   // State for "To School" (등교) simulation
   const [toSchoolOrigin, setToSchoolOrigin] = useState("札幌駅");
-  const [toSchoolDate, setToSchoolDate] = useState<Date | undefined>(new Date());
+  const [toSchoolDay, setToSchoolDay] = useState<string>("월요일");
   const [toSchoolPeriod, setToSchoolPeriod] = useState("1"); // 1교시
   const [isCalculatingToSchool, setIsCalculatingToSchool] = useState(false);
   const [toSchoolError, setToSchoolError] = useState<string | null>(null);
@@ -91,9 +88,6 @@ export default function DevAdminPage() {
   const [fromSchoolError, setFromSchoolError] = useState<string | null>(null);
   const [fromSchoolResponse, setFromSchoolResponse] = useState<any | null>(null);
   
-  const threeMonthsFromNow = new Date();
-  threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
-
   const fetchData = async () => {
     setIsLoading(true);
     setError(null);
@@ -192,7 +186,8 @@ export default function DevAdminPage() {
       setUsers(users.filter(u => u.id !== selectedUser.id));
       toast({ title: "성공", description: "유저를 삭제했습니다." });
       setIsDeleteDialogOpen(false);
-    } catch (err) {
+    } catch (err)
+ {
       const message = err instanceof Error ? err.message : "An unknown error occurred.";
       toast({ title: "에러", description: `삭제 실패: ${message}`, variant: 'destructive' });
     } finally {
@@ -205,33 +200,14 @@ export default function DevAdminPage() {
     setToSchoolError(null);
     setToSchoolResponse(null);
 
-    if (!toSchoolDate) {
-      const msg = "날짜를 선택해주세요.";
-      setToSchoolError(msg);
-      toast({ title: "에러", description: msg, variant: "destructive" });
-      setIsCalculatingToSchool(false);
-      return;
-    }
-
-    const periodTimes: { [key: string]: { hour: number; minute: number } } = {
-      '1': { hour: 9, minute: 0 },
-      '2': { hour: 10, minute: 30 },
-      '3': { hour: 13, minute: 0 },
-      '4': { hour: 14, minute: 40 },
-      '5': { hour: 16, minute: 20 },
-    };
-    const { hour, minute } = periodTimes[toSchoolPeriod as keyof typeof periodTimes];
-    
-    const arrivalDeadline = new Date(toSchoolDate);
-    arrivalDeadline.setHours(hour, minute, 0, 0);
-
     try {
       const response = await fetch('/api/dev/transit-route', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           origin: toSchoolOrigin,
-          arrivalTime: arrivalDeadline.toISOString(),
+          day: toSchoolDay,
+          period: toSchoolPeriod,
         }),
       });
       const data = await response.json();
@@ -265,7 +241,6 @@ export default function DevAdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           destination: fromSchoolDest,
-          departureTime: 'now',
         }),
       });
       const data = await response.json();
@@ -403,10 +378,10 @@ export default function DevAdminPage() {
           <CardHeader>
             <CardTitle className="text-xl font-bold text-primary flex items-center">
               <School className="mr-3 h-6 w-6" />
-              등교 시뮬레이션 (도착 시간 기준)
+              등교 시뮬레이션 (요일 기준)
             </CardTitle>
             <CardDescription>
-              특정 교시까지 학교에 도착하기 위한 최신 출발 시간을 계산합니다.
+              다음 주 특정 요일의 수업에 맞춰 도착하기 위한 일반적인 출발 시간을 계산합니다.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -421,31 +396,21 @@ export default function DevAdminPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="to-school-date">목표 날짜</Label>
-                 <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !toSchoolDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {toSchoolDate ? format(toSchoolDate, "PPP") : <span>날짜 선택</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={toSchoolDate}
-                      onSelect={setToSchoolDate}
-                      initialFocus
-                      fromDate={new Date()}
-                      toDate={threeMonthsFromNow}
-                    />
-                  </PopoverContent>
-                </Popover>
+                <Label htmlFor="to-school-day">목표 요일</Label>
+                <Select value={toSchoolDay} onValueChange={setToSchoolDay}>
+                  <SelectTrigger id="to-school-day">
+                    <SelectValue placeholder="요일 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="월요일">월요일</SelectItem>
+                    <SelectItem value="화요일">화요일</SelectItem>
+                    <SelectItem value="수요일">수요일</SelectItem>
+                    <SelectItem value="목요일">목요일</SelectItem>
+                    <SelectItem value="금요일">금요일</SelectItem>
+                    <SelectItem value="토요일">토요일</SelectItem>
+                    <SelectItem value="일요일">일요일</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="to-school-period">목표 교시</Label>

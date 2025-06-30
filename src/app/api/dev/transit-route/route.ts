@@ -1,5 +1,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { nextMonday, nextTuesday, nextWednesday, nextThursday, nextFriday, nextSaturday, nextSunday } from 'date-fns';
+
 
 // Common interface for a single step in a journey
 interface TransitStep {
@@ -90,7 +92,7 @@ async function getCoordinates(
 
 export async function POST(request: NextRequest) {
   const debugLogs: string[] = [];
-  debugLogs.push('[DEBUG] /api/dev/transit-route POST handler started (v5 with coordinate-based logic).');
+  debugLogs.push('[DEBUG] /api/dev/transit-route POST handler started (v7 - Real Time Logic).');
 
   let body;
   try {
@@ -103,7 +105,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'Invalid JSON in request body.', debugLogs }, { status: 400 });
   }
   
-  const { origin, destination, departureTime, arrivalTime } = body;
+  const { origin, destination, day, period } = body;
   const apiKey = process.env.Maps_API_KEY;
 
   if (!apiKey) {
@@ -114,11 +116,11 @@ export async function POST(request: NextRequest) {
   }
 
   const universityAddress = "北海道札幌市手稲区前田７条１５丁目４−１";
-  const isToSchool = !!arrivalTime;
+  const isToSchool = !!(origin && day && period);
 
   try {
     if (isToSchool) {
-      // --- 'To School' Logic using 3-step algorithm with coordinates ---
+      // --- 'To School' Logic using 3-step algorithm with actual upcoming day ---
       if (!origin) {
           const errorMsg = 'Origin address is required for "to school" route.';
           debugLogs.push(`[DEBUG] Validation failed: ${errorMsg}`);
@@ -167,15 +169,29 @@ export async function POST(request: NextRequest) {
       debugLogs.push(`[DEBUG] Step 1 Result: Average duration is ${avgDurationInSeconds} seconds.`);
 
       // --- 2. Calculation Phase: Calculate recommended departure time ---
-      debugLogs.push(`[DEBUG] Step 2: Calculating recommended departure time.`);
-      const arrivalDeadline = new Date(arrivalTime);
-      if (isNaN(arrivalDeadline.getTime())) {
-          const errorMsg = 'Invalid arrivalTime format. Please provide an ISO 8601 string.';
-          debugLogs.push(`[DEBUG] Invalid arrivalTime received: ${arrivalTime}`);
-          return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
+      debugLogs.push(`[DEBUG] Step 2: Calculating recommended departure time based on selected day and period.`);
+      const periodTimes: { [key: string]: { hour: number; minute: number } } = {
+        '1': { hour: 9, minute: 0 }, '2': { hour: 10, minute: 30 }, '3': { hour: 13, minute: 0 },
+        '4': { hour: 14, minute: 40 }, '5': { hour: 16, minute: 20 },
+      };
+      const dayFunctions: { [key: string]: (date: Date) => Date } = {
+        '월요일': nextMonday, '화요일': nextTuesday, '수요일': nextWednesday,
+        '목요일': nextThursday, '금요일': nextFriday, '토요일': nextSaturday, '일요일': nextSunday,
+      };
+
+      if (!dayFunctions[day] || !periodTimes[period]) {
+        const errorMsg = 'Invalid day or period provided.';
+        debugLogs.push(`[DEBUG] Error: ${errorMsg} (day: ${day}, period: ${period})`);
+        return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
       }
+      
+      const targetDayFunction = dayFunctions[day];
+      const targetTime = periodTimes[period];
+      const arrivalDeadline = targetDayFunction(new Date());
+      arrivalDeadline.setHours(targetTime.hour, targetTime.minute, 0, 0);
+
       const recommendedDepartureTime = new Date(arrivalDeadline.getTime() - avgDurationInSeconds * 1000);
-      debugLogs.push(`[DEBUG] Arrival deadline is ${arrivalDeadline.toISOString()}. Recommended departure is ${recommendedDepartureTime.toISOString()}.`);
+      debugLogs.push(`[DEBUG] Target arrival is ${arrivalDeadline.toISOString()}. Recommended departure is ${recommendedDepartureTime.toISOString()}.`);
       const recommendedDepartureTimestamp = Math.floor(recommendedDepartureTime.getTime() / 1000);
 
       // --- 3. Finalization Phase: Get final route ---
@@ -227,7 +243,7 @@ export async function POST(request: NextRequest) {
       }
 
     } else { 
-      // --- 'From School' Logic with coordinates ---
+      // --- 'From School' Logic with coordinates (Depart Now) ---
       if (!destination) {
           const errorMsg = 'Destination address is required for "from school" route.';
           debugLogs.push(`[DEBUG] Validation failed: ${errorMsg}`);
@@ -257,22 +273,10 @@ export async function POST(request: NextRequest) {
         key: apiKey,
       });
 
-      if (departureTime && departureTime !== 'now') {
-          debugLogs.push(`[DEBUG] Original departureTime string: ${departureTime}`);
-          const departureDate = new Date(departureTime);
-
-          if (isNaN(departureDate.getTime())) {
-              const errorMsg = 'Invalid departureTime format. Please provide an ISO 8601 string.';
-              debugLogs.push(`[DEBUG] Invalid departureTime received: ${departureTime}`);
-              return NextResponse.json({ message: errorMsg, debugLogs }, { status: 400 });
-          }
-          const departureTimestamp = Math.floor(departureDate.getTime() / 1000).toString();
-          debugLogs.push(`[DEBUG] Converted departure_time timestamp: ${departureTimestamp}`);
-          params.set('departure_time', departureTimestamp);
-      } else {
-          debugLogs.push('[DEBUG] Using "now" for departure_time.');
-          params.set('departure_time', Math.floor(Date.now() / 1000).toString());
-      }
+      // Always use the current time for 'from school' logic
+      const departureTimestamp = Math.floor(Date.now() / 1000).toString();
+      params.set('departure_time', departureTimestamp);
+      debugLogs.push(`[DEBUG] Using explicit current timestamp for departure_time: ${departureTimestamp}`);
       
       const apiUrl = `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`;
       debugLogs.push(`[DEBUG] Final Google Maps API URL for 'From School': ${apiUrl}`);
@@ -291,7 +295,7 @@ export async function POST(request: NextRequest) {
           };
           return NextResponse.json({ formattedRoute: formattedResult, rawResponse: rawData, debugLogs });
       } else if (rawData.status === 'ZERO_RESULTS') {
-          const userMessage = "선택하신 날짜와 시간에는 이용 가능한 대중교통 경로를 찾을 수 없습니다. 다른 날짜나 시간으로 다시 시도해 주세요.";
+          const userMessage = "현재 시간에는 이용 가능한 대중교통 경로를 찾을 수 없습니다. 잠시 후 다시 시도해 주세요.";
           debugLogs.push(`[DEBUG] API returned ZERO_RESULTS. Sending user-friendly message.`);
           return NextResponse.json({ 
               message: userMessage,
