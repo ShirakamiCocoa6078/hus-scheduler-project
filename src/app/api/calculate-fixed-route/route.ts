@@ -160,9 +160,9 @@ export async function POST(request: NextRequest) {
       
       const currentTime = new Date();
 
-      // Step 1: Find next buses from HUS
-      const busSchedule = timetable.buses.from_teine_station.line_te72[scheduleKey]; // Note: Using same schedule for simplicity, would need reverse schedule in real app
-      const busDuration = timetable.buses.from_teine_station.line_te72.duration_minutes;
+      // Step 1: Find next buses from HUS using the reverse schedule
+      const busSchedule = timetable.buses.to_teine_station.line_te72_reverse[scheduleKey];
+      const busDuration = timetable.buses.to_teine_station.line_te72_reverse.duration_minutes;
       const nextBuses = findNextDepartures(busSchedule, busDuration, currentTime, 3);
       
       if (nextBuses.length === 0) {
@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
             steps: [
                {
                 type: 'BUS',
-                line: '手72 (역방향)',
+                line: '手72',
                 from: '北海道科学大学',
                 to: '手稲駅南口',
                 departureTime: format(bus.departure, "HH:mm"),
