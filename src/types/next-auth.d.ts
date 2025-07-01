@@ -2,11 +2,17 @@
 import type { DefaultSession, User as NextAuthUser } from "next-auth";
 import type { JWT as NextAuthJWT } from "next-auth/jwt";
 
-// オンボーディングデータの型定義
+// 통학 경로 계획 타입 정의
+interface CommutePlan {
+  primaryMode?: 'jr' | 'subway' | 'bus' | 'bicycle' | 'walk';
+  startPoint?: string; // 역 이름 또는 주소
+  transferMode?: 'bus' | 'walk' | 'bicycle'; // 환승 수단
+}
+
+// 온보딩 데이터의 타입 정의
 interface OnboardingData {
   department?: string;
-  homeStation?: string;
-  universityStation?: string;
+  commutePlan?: CommutePlan;
 }
 
 declare module "next-auth" {
@@ -19,20 +25,20 @@ declare module "next-auth" {
     accessToken?: string;
   }
 
-  // NextAuth.User型を拡張してidとonboardingDataを含める
+  // NextAuth.User형을 확장하여 id와 onboardingData를 포함
   interface User extends NextAuthUser {
-    id: string; // ユーザーIDを必須にする
-    onboardingData?: OnboardingData; // オンボーディングデータをオプションで追加
+    id: string; // 사용자 ID를 필수로 설정
+    onboardingData?: OnboardingData; // 온보딩 데이터를 옵션으로 추가
     isSetupComplete?: boolean;
   }
 }
 
 declare module "next-auth/jwt" {
-  // JWT型を拡張してidとonboardingDataを含める
+  // JWT 타입을 확장하여 id와 onboardingData를 포함
   interface JWT extends NextAuthJWT {
     id: string;
     onboardingData?: OnboardingData;
     isSetupComplete?: boolean;
-    accessToken?: string; // 既存のaccessTokenも維持
+    accessToken?: string; // 기존의 accessToken도 유지
   }
 }
