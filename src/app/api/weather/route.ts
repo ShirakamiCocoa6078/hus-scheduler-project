@@ -154,11 +154,11 @@ async function scrapeYahooWeather(): Promise<WeatherData | null> {
 
 
 export async function GET() {
-    console.log('[API-Weather] GET request received.');
+    console.log('[Weather API] Request received.');
     const locationKey = "sapporo_teine";
 
     try {
-        console.log('[API-Weather] Checking database for cached data...');
+        console.log('[Weather API] Checking database for cached data...');
         const cachedData = await prisma.weather.findUnique({
             where: { locationKey },
         });
@@ -168,41 +168,46 @@ export async function GET() {
         cacheExpiry.setHours(now.getHours() - CACHE_DURATION_HOURS);
 
         if (cachedData && new Date(cachedData.updatedAt) > cacheExpiry) {
-            console.log(`[API-Weather] Cache is fresh (updated at ${cachedData.updatedAt}). Serving from cache.`);
+            console.log(`[Weather API] Cache is fresh (updated at ${cachedData.updatedAt}). Serving from cache.`);
             return NextResponse.json(cachedData.data);
         }
 
-        console.log(`[API-Weather] Cache is stale or not found. Last update: ${cachedData?.updatedAt || 'N/A'}.`);
+        console.log(`[Weather API] Cache is stale or not found. Last update: ${cachedData?.updatedAt || 'N/A'}. Scraping new data...`);
         const newWeatherData = await scrapeYahooWeather();
 
         if (!newWeatherData) {
-            throw new Error("Failed to scrape new weather data.");
+            // 스크레이핑 실패 시, 만료된 캐시라도 있으면 우선 반환 (폴백 로직)
+            if (cachedData) {
+                console.warn('[Weather API] Scraper failed, serving stale data from cache as fallback.');
+                return NextResponse.json(cachedData.data);
+            }
+            throw new Error("Failed to scrape new weather data and no cache is available.");
         }
 
         const dbPayload = newWeatherData as any;
 
-        console.log('[API-Weather] Upserting new weather data into database...');
+        console.log('[Weather API] Upserting new weather data into database...');
         await prisma.weather.upsert({
             where: { locationKey },
             update: { data: dbPayload, updatedAt: new Date() },
             create: { locationKey, data: dbPayload },
         });
 
-        console.log("[API-Weather] Database updated. Serving new weather data.");
+        console.log("[Weather API] Database updated. Serving new weather data.");
         return NextResponse.json(newWeatherData);
 
     } catch (error) {
-        console.error('[API-Weather] Error in GET handler:', error);
+        console.error('[Weather API] CATCH BLOCK: An error occurred.', error);
         const errorMessage = error instanceof Error ? error.message : 'An unknown server error occurred.';
         
-        console.warn('[API-Weather] Attempting to serve stale cache due to error...');
+        // 최종 폴백: 에러 발생 시 만료된 캐시라도 찾아본다.
         const staleData = await prisma.weather.findUnique({ where: { locationKey } });
         if (staleData) {
-            console.warn("[API-Weather] Serving stale weather data as a fallback.");
+            console.warn("[Weather API] CRITICAL FALLBACK: Serving stale weather data due to a critical error.");
             return NextResponse.json(staleData.data);
         }
         
-        console.error('[API-Weather] No stale cache available. Returning error response.');
+        console.error('[Weather API] No stale cache available. Returning error response.');
         return NextResponse.json({ message: '날씨 정보를 가져오는 데 실패했습니다.', error: errorMessage }, { status: 500 });
     }
 }

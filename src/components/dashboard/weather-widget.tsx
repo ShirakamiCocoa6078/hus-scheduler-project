@@ -8,7 +8,7 @@ import { Thermometer, Wind, Droplets, Loader2 as LoaderIcon, AlertTriangle, Arro
 import Image from "next/image";
 import { useEffect, useState } from "react";
 
-// Interfaces to match the new API response
+// Interfaces to match the API response
 interface HourlyForecast {
     time: string;
     weather: string;
@@ -29,6 +29,7 @@ interface WeeklyForecast {
     precipitation_percent: string;
 }
 
+// This matches the structure returned by the API
 interface WeatherData {
     location: string;
     source: string;
@@ -46,40 +47,44 @@ export function WeatherWidget() {
 
   useEffect(() => {
     const fetchWeather = async () => {
-        console.log('[WeatherWidget] Starting weather data fetch...');
         setIsLoading(true);
         setError(null);
+        console.log("[WeatherWidget] Starting weather data fetch...");
+
         try {
             const response = await fetch('/api/weather');
-            console.log('[WeatherWidget] API response received:', response);
+            console.log("[WeatherWidget] API response received:", response.clone()); // 응답 객체 복제하여 로그
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: 'Failed to parse error JSON.' }));
-                console.error(`[WeatherWidget] API request failed with status ${response.status}.`, errorData);
-                throw new Error(errorData.message || '날씨 정보 로딩 실패');
+                const errorData = await response.json().catch(() => ({ message: "서버 응답을 JSON으로 파싱할 수 없습니다." }));
+                throw new Error(errorData.message || `HTTP 에러! Status: ${response.status}`);
             }
+
             const data: WeatherData = await response.json();
-            console.log('[WeatherWidget] Successfully parsed API data:', data);
-            
-            if (!data.today || !data.weekly || data.today.length === 0 || data.weekly.length === 0) {
-              console.error('[WeatherWidget] Received data is missing required fields (today, weekly) or is empty.');
-              throw new Error("서버로부터 받은 날씨 데이터 형식이 올바르지 않습니다.");
+
+            // 받아온 데이터 구조를 그대로 로그에 출력
+            console.log("[WeatherWidget] Successfully parsed API data:", data);
+
+            // 데이터 구조가 올바른지 더 상세히 확인
+            if (!data || !Array.isArray(data.today) || !Array.isArray(data.weekly) || data.today.length === 0) {
+                console.error("[WeatherWidget] Received data is missing required fields (today, weekly) or is empty.");
+                throw new Error("서버로부터 받은 날씨 데이터 형식이 올바르지 않습니다.");
             }
 
             setWeather(data);
-            console.log('[WeatherWidget] Weather state updated successfully.');
         } catch (err) {
-            const message = err instanceof Error ? err.message : "알 수 없는 오류 발생";
-            console.error('[WeatherWidget] An error occurred during fetch:', err);
+            const message = err instanceof Error ? err.message : "알 수 없는 에러 발생";
+            console.error("[WeatherWidget] An error occurred during fetch:", err);
             setError(message);
         } finally {
             setIsLoading(false);
-            console.log('[WeatherWidget] Fetch process finished.');
+            console.log("[WeatherWidget] Fetch process finished.");
         }
     };
+
     fetchWeather();
   }, []);
-
+  
   if (isLoading) {
     return (
       <Card className="shadow-lg">
