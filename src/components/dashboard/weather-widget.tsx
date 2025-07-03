@@ -46,26 +46,35 @@ export function WeatherWidget() {
 
   useEffect(() => {
     const fetchWeather = async () => {
+        console.log('[WeatherWidget] Starting weather data fetch...');
         setIsLoading(true);
         setError(null);
         try {
             const response = await fetch('/api/weather');
+            console.log('[WeatherWidget] API response received:', response);
+
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = await response.json().catch(() => ({ message: 'Failed to parse error JSON.' }));
+                console.error(`[WeatherWidget] API request failed with status ${response.status}.`, errorData);
                 throw new Error(errorData.message || '날씨 정보 로딩 실패');
             }
             const data: WeatherData = await response.json();
+            console.log('[WeatherWidget] Successfully parsed API data:', data);
             
             if (!data.today || !data.weekly || data.today.length === 0 || data.weekly.length === 0) {
+              console.error('[WeatherWidget] Received data is missing required fields (today, weekly) or is empty.');
               throw new Error("서버로부터 받은 날씨 데이터 형식이 올바르지 않습니다.");
             }
 
             setWeather(data);
+            console.log('[WeatherWidget] Weather state updated successfully.');
         } catch (err) {
             const message = err instanceof Error ? err.message : "알 수 없는 오류 발생";
+            console.error('[WeatherWidget] An error occurred during fetch:', err);
             setError(message);
         } finally {
             setIsLoading(false);
+            console.log('[WeatherWidget] Fetch process finished.');
         }
     };
     fetchWeather();
