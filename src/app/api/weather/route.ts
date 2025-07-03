@@ -8,101 +8,120 @@ import type { Element } from 'cheerio';
 const prisma = new PrismaClient();
 const CACHE_DURATION_HOURS = 1;
 
+// Interfaces for the scraped data structure
 interface HourlyForecast {
     time: string;
-    temp: string;
-    precip: string;
-    iconUrl: string;
+    weather: string;
+    icon_url: string | undefined;
+    temperature_c: string;
+    humidity_percent: string;
+    precipitation_mm: string;
+    wind_direction: string | null;
+    wind_speed_ms: string | null;
 }
 
 interface WeeklyForecast {
     date: string;
-    dayOfWeek: string;
     weather: string;
-    iconUrl: string;
-    maxTemp: string;
-    minTemp: string;
-    precip: string;
+    icon_url: string | undefined;
+    temp_high_c: string | null;
+    temp_low_c: string | null;
+    precipitation_percent: string;
 }
 
 interface WeatherData {
     location: string;
-    current: {
-        temp: string;
-        description: string;
-        iconUrl: string;
-    };
-    today: {
-        maxTemp: string;
-        minTemp: string;
-        precip: string;
-    };
-    hourly: HourlyForecast[];
+    source: string;
+    updatedAt: string;
+    today: HourlyForecast[];
+    tomorrow: HourlyForecast[];
     weekly: WeeklyForecast[];
 }
 
-function parseHourlyForecast($: cheerio.CheerioAPI): HourlyForecast[] {
-    const hourly: HourlyForecast[] = [];
-    $('div[data-ga-label="hourly-forecast"] .yjw_table_pinpoint_hourly tbody tr').first().find('td').each((i, el) => {
-        const time = $(el).find('.time').text().trim();
-        const temp = $(el).find('.temp').text().trim();
-        const precip = $(el).find('.precip').text().trim();
-        const iconUrl = $(el).find('img').attr('src') || '';
-        if (time) {
-            hourly.push({ time, temp, precip, iconUrl });
-        }
-    });
-    return hourly;
+function parseHourlyForecast($: cheerio.CheerioAPI, element: Element | undefined): HourlyForecast[] {
+    if (!element) return [];
+    const table = $(element).find('table.yjw_table2');
+    if (table.length === 0) return [];
+
+    const headers = table.find('tr').first().find('td').slice(1).map((i, el) => $(el).text().trim()).get();
+    const dataRows = table.find('tr').slice(1);
+    const hourlyData: HourlyForecast[] = [];
+
+    if (dataRows.length < 5) return [];
+
+    const weatherRow = $(dataRows[0]).find('td').slice(1);
+    const tempRow = $(dataRows[1]).find('td').slice(1);
+    const humidityRow = $(dataRows[2]).find('td').slice(1);
+    const precipitationRow = $(dataRows[3]).find('td').slice(1);
+    const windRow = $(dataRows[4]).find('td').slice(1);
+
+    for (let i = 0; i < headers.length; i++) {
+        const windInfo = $(windRow[i]).text().trim().split(/\s+/);
+        hourlyData.push({
+            time: headers[i],
+            weather: $(weatherRow[i]).text().trim(),
+            icon_url: $(weatherRow[i]).find('img').attr('src'),
+            temperature_c: $(tempRow[i]).text().trim(),
+            humidity_percent: $(humidityRow[i]).text().trim(),
+            precipitation_mm: $(precipitationRow[i]).text().trim(),
+            wind_direction: windInfo[0] || null,
+            wind_speed_ms: windInfo[1] ? windInfo[1].replace('m/s','') : null,
+        });
+    }
+    return hourlyData;
 }
 
+function parseWeeklyForecast($: cheerio.CheerioAPI, element: Element | undefined): WeeklyForecast[] {
+    if (!element) return [];
+    const table = $(element).find('table.yjw_table');
+    if (table.length === 0) return [];
 
-function parseWeeklyForecast($: cheerio.CheerioAPI): WeeklyForecast[] {
-    const weekly: WeeklyForecast[] = [];
-    $('.yjw_table_week tbody tr').each((i, el) => {
-        const dateEl = $(el).find('.date');
-        const date = dateEl.find('em').text().trim();
-        const dayOfWeek = dateEl.text().replace(date, '').trim();
+    const headers = table.find('tr').first().find('td').slice(1).map((i, el) => $(el).text().replace(/\s+/g, ' ').trim()).get();
+    const weeklyData: WeeklyForecast[] = [];
 
-        const weather = $(el).find('.weather .pict').text().trim();
-        const iconUrl = $(el).find('.weather img').attr('src') || '';
-        
-        const maxTemp = $(el).find('.temp .high').text().trim();
-        const minTemp = $(el).find('.temp .low').text().trim();
-        const precip = $(el).find('.precip').text().trim();
+    if (table.find('tr').length < 4) return [];
 
-        if (date) {
-            weekly.push({ date, dayOfWeek, weather, iconUrl, maxTemp, minTemp, precip });
-        }
-    });
-    return weekly;
+    const weatherRow = table.find('tr').eq(1).find('td').slice(1);
+    const tempRow = table.find('tr').eq(2).find('td').slice(1);
+    const precipRow = table.find('tr').eq(3).find('td').slice(1);
+
+    for (let i = 0; i < headers.length; i++) {
+        const tempInfo = $(tempRow[i]).text().trim().split(/\s+/);
+        weeklyData.push({
+            date: headers[i],
+            weather: $(weatherRow[i]).text().trim(),
+            icon_url: $(weatherRow[i]).find('img').attr('src'),
+            temp_high_c: tempInfo[0] || null,
+            temp_low_c: tempInfo[1] || null,
+            precipitation_percent: $(precipRow[i]).text().trim(),
+        });
+    }
+    return weeklyData;
 }
+
 
 async function scrapeYahooWeather(): Promise<WeatherData | null> {
     const url = 'https://weather.yahoo.co.jp/weather/jp/1b/1400/1109.html'; // Sapporo, Teine-ku
     try {
-        const { data } = await axios.get(url, {
+        const { data: html } = await axios.get(url, {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
         });
-        const $ = cheerio.load(data);
+        const $ = cheerio.load(html);
 
-        const location = $('.yjw_main_md .namedata').text().trim() || '札幌(手稲)';
-
-        const current = {
-            temp: $('.yjw_main_md .temp .value').text().trim(),
-            description: $('.yjw_main_md .pict p').text().trim(),
-            iconUrl: $('.yjw_main_md .pict img').attr('src') || '',
+        const todayForecastDiv = $('#yjw_pinpoint_today').get(0);
+        const tomorrowForecastDiv = $('#yjw_pinpoint_tomorrow').get(0);
+        const weeklyForecastDiv = $('#yjw_week').get(0);
+        
+        const weatherData: WeatherData = {
+            location: "札幌市手稲区",
+            source: url,
+            updatedAt: new Date().toISOString(),
+            today: parseHourlyForecast($, todayForecastDiv),
+            tomorrow: parseHourlyForecast($, tomorrowForecastDiv),
+            weekly: parseWeeklyForecast($, weeklyForecastDiv)
         };
-
-        const today = {
-            maxTemp: $('.yjw_main_md .temp .high span').text().trim(),
-            minTemp: $('.yjw_main_md .temp .low span').text().trim(),
-            precip: $('.yjw_precip_dia .precip').first().text().trim(),
-        };
-
-        const hourly = parseHourlyForecast($);
-        const weekly = parseWeeklyForecast($);
-
-        return { location, current, today, hourly, weekly };
+        
+        return weatherData;
     } catch (error) {
         console.error("Scraping failed:", error);
         return null;
