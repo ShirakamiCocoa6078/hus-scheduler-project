@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -49,8 +48,9 @@ import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-
+import type { OnboardingData } from "@/types/next-auth";
 
 // Represents a subset of the Prisma User model for display
 interface DisplayUser {
@@ -60,7 +60,34 @@ interface DisplayUser {
   image?: string | null;
   isSetupComplete: boolean;
   archived: boolean;
+  onboardingData?: OnboardingData | null;
 }
+
+// Helper to format commute plan for display
+const formatCommutePlan = (onboardingData: OnboardingData | null | undefined): string => {
+  const plan = onboardingData?.commutePlan;
+  if (!plan?.primaryMode) {
+    return "설정 안됨";
+  }
+
+  const { primaryMode, startPoint, transferMode } = plan;
+
+  switch (primaryMode) {
+    case 'jr':
+      return `JR (${startPoint || '미지정'}) → 테이네 (${transferMode || '미지정'})`;
+    case 'subway':
+      return `지하철 (${startPoint || '미지정'}) → 미야노사와 (${transferMode || '미지정'})`;
+    case 'bus':
+      return `버스 (${startPoint === 'teine_station' ? '테이네역' : '미야노사와역'})`;
+    case 'bicycle':
+      return `자전거 (${startPoint || '주소 미지정'})`;
+    case 'walk':
+      return `도보 (${startPoint || '주소 미지정'})`;
+    default:
+      return "정보 없음";
+  }
+};
+
 
 export default function DevAdminPage() {
   const [users, setUsers] = useState<DisplayUser[]>([]);
@@ -72,7 +99,7 @@ export default function DevAdminPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editFormData, setEditFormData] = useState({ name: "", email: "" });
+  const [editFormData, setEditFormData] = useState({ name: "", email: "", onboardingData: "" });
 
   // --- NEW: State for Fixed Route Simulation ---
   const [toSchoolStation, setToSchoolStation] = useState("sapporo_station");
@@ -117,7 +144,11 @@ export default function DevAdminPage() {
 
   const handleEditClick = (user: DisplayUser) => {
     setSelectedUser(user);
-    setEditFormData({ name: user.name ?? '', email: user.email ?? '' });
+    setEditFormData({ 
+      name: user.name ?? '', 
+      email: user.email ?? '',
+      onboardingData: JSON.stringify(user.onboardingData ?? {}, null, 2)
+    });
     setIsEditDialogOpen(true);
   };
 
@@ -129,18 +160,33 @@ export default function DevAdminPage() {
   const handleUpdateUser = async () => {
     if (!selectedUser) return;
     setIsSubmitting(true);
+
+    let parsedOnboardingData;
+    try {
+      parsedOnboardingData = editFormData.onboardingData.trim() === '' ? {} : JSON.parse(editFormData.onboardingData);
+    } catch (err) {
+      toast({ title: "JSON 에러", description: "온보딩 정보가 유효한 JSON 형식이 아닙니다.", variant: 'destructive' });
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const response = await fetch(`/api/admin/users/${selectedUser.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editFormData.name, email: editFormData.email }),
+        body: JSON.stringify({ 
+          name: editFormData.name, 
+          email: editFormData.email,
+          onboardingData: parsedOnboardingData
+        }),
       });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to update user.');
       }
       const updatedUser: DisplayUser = await response.json();
-      setUsers(users.map(u => u.id === updatedUser.id ? {...u, ...updatedUser} : u));
+      // After successful update, refetch all data to ensure consistency
+      await fetchData();
       toast({ title: "성공", description: "유저 정보가 갱신되었습니다." });
       setIsEditDialogOpen(false);
     } catch (err) {
@@ -192,8 +238,6 @@ export default function DevAdminPage() {
       setIsSubmitting(false);
     }
   };
-
-  // --- NEW: Fixed Route Handlers ---
 
   const handleCalculateToSchool = async () => {
     setIsCalculatingToSchool(true);
@@ -282,7 +326,6 @@ export default function DevAdminPage() {
         </Button>
       </div>
       
-      {/* Fixed Route Simulation Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
         <Card>
           <CardHeader>
@@ -413,8 +456,6 @@ export default function DevAdminPage() {
         </Card>
       </div>
 
-
-      {/* User Data Table Section */}
       <div className="flex items-center justify-between mb-4 mt-8">
         <p className="text-muted-foreground">
           데이터베이스에서 직접 가져온 현재 사용자 데이터입니다.
@@ -447,8 +488,9 @@ export default function DevAdminPage() {
                 <TableHead className="w-[60px]">유저</TableHead>
                 <TableHead>이름</TableHead>
                 <TableHead>이메일</TableHead>
+                <TableHead>통학 정보</TableHead>
                 <TableHead className="text-center">온보딩 완료</TableHead>
-                <TableHead className="w-[280px]">유저 ID</TableHead>
+                <TableHead className="w-[200px]">유저 ID</TableHead>
                 <TableHead className="text-right">작업</TableHead>
               </TableRow>
             </TableHeader>
@@ -468,6 +510,7 @@ export default function DevAdminPage() {
                     {user.archived && <Badge variant="secondary" className="ml-2">보관됨</Badge>}
                   </TableCell>
                   <TableCell>{user.email ?? "N/A"}</TableCell>
+                  <TableCell className="text-xs">{formatCommutePlan(user.onboardingData)}</TableCell>
                   <TableCell className="text-center">
                     {user.isSetupComplete ? (
                       <Badge variant="default">예</Badge>
@@ -511,9 +554,8 @@ export default function DevAdminPage() {
         )}
       </div>
 
-      {/* Edit User Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>유저 편집</DialogTitle>
             <DialogDescription>
@@ -543,6 +585,18 @@ export default function DevAdminPage() {
                 className="col-span-3"
               />
             </div>
+            <div className="grid grid-cols-4 items-start gap-4">
+              <Label htmlFor="onboardingData" className="text-right pt-2">
+                온보딩 정보 (JSON)
+              </Label>
+              <Textarea
+                id="onboardingData"
+                value={editFormData.onboardingData}
+                onChange={(e) => setEditFormData({ ...editFormData, onboardingData: e.target.value })}
+                className="col-span-3 h-48 font-mono text-xs"
+                placeholder="{...}"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>취소</Button>
@@ -554,7 +608,6 @@ export default function DevAdminPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete User Alert Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -564,7 +617,7 @@ export default function DevAdminPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setIsSubmitting(false)} disabled={isSubmitting}>취소</AlertDialogCancel>
+            <AlertDialogCancel disabled={isSubmitting}>취소</AlertDialogCancel>
             <Button
               variant="destructive"
               onClick={handleConfirmDelete}
