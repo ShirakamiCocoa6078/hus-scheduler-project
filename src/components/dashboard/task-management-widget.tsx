@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ListChecks, Plus, Loader2, FileText, BookCopy, Calendar as CalendarIcon, Clock, MapPin, AlertTriangle, Trash2, Pencil, GripVertical } from "lucide-react";
+import { ListChecks, Plus, Loader2, PartyPopper, BookCopy, Calendar as CalendarIcon, Clock, MapPin, AlertTriangle, Trash2, Pencil } from "lucide-react";
 import { format, formatDistanceToNowStrict, isPast, setHours, setMinutes, setSeconds } from "date-fns";
 import { ja } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -120,9 +120,9 @@ export function TaskManagementWidget() {
           <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin" /></div>
         ) : tasks.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            <FileText className="mx-auto h-12 w-12 mb-4" />
-            <p className="font-semibold">今後のタスクはありません</p>
-            <p className="text-sm">新しい課題や試験を追加しましょう。</p>
+            <PartyPopper className="mx-auto h-12 w-12 mb-4" />
+            <p className="text-muted-foreground font-medium text-lg">保留中のタスクはありません！</p>
+            <p className="text-sm text-muted-foreground mt-1">すべて完了しているようです。</p>
           </div>
         ) : (
           <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
@@ -283,4 +283,3 @@ function TaskDialog({ courses, onTaskAdded, taskToEdit, triggerButton }: { cours
     </Dialog>
   );
 }
-
