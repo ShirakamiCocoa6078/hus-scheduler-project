@@ -132,7 +132,7 @@ function ImportTabContent() {
       toast({ title: '成功', description: '時間割が正常に保存されました。' });
       router.push('/dashboard');
     } catch (error) {
-      toast({ title: '保存エラー', description: error instanceof Error ? error.message : '不明なエラーが発生しました。', variant: 'destructive' });
+      toast({ title: '保存エラー', description: error instanceof Error ? error.message : '不明なエラー', variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
