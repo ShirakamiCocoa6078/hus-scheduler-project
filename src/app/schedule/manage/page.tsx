@@ -1,51 +1,118 @@
 'use client';
 
 import Link from 'next/link';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { UploadCloud, ArrowLeft } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowLeft, BookMarked, FileCode, ExternalLink } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ManageSchedulePage() {
+  const { toast } = useToast();
+  const bookmarkletCode = `javascript:(function(){const s=document.createElement("script");s.src="https://hus-scheduler-project.vercel.app/js/unipa-importer.js";document.body.appendChild(s);})();`;
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(bookmarkletCode).then(() => {
+      toast({
+        title: "コピーしました！",
+        description: "ブックマークのURL欄に貼り付けてください。",
+      });
+    }, (err) => {
+      toast({
+        title: "コピー失敗",
+        description: "クリップボードへのコピーに失敗しました。",
+        variant: "destructive",
+      });
+    });
+  };
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
-      <Card className="w-full max-w-2xl">
-        <CardHeader>
-          <CardTitle className="text-2xl font-headline text-primary">강의 시간표 관리</CardTitle>
-          <CardDescription>
-            강의 시간표 스크린샷을 업로드하여 일정을 자동으로 추가하세요.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6 text-center">
-          <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg">
-            <UploadCloud className="h-16 w-16 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold">이미지 업로드 (기능 준비 중)</h3>
-            <p className="text-sm text-muted-foreground mt-2">
-              여기를 클릭하거나 파일을 드래그하여 시간표를 업로드하세요.
+    <div className="container mx-auto max-w-4xl p-4 md:p-8">
+        <div className="mb-8">
+            <h1 className="text-3xl md:text-4xl font-headline text-primary">時間割のインポート方法</h1>
+            <p className="mt-2 text-muted-foreground">
+                「本日のスケジュール」機能を利用するには、大学のポータルサイト「HUS-UNIPA」からご自身の時間割データを取得し、HUS-schedulerに反映させる必要があります。
             </p>
-             <Button variant="outline" className="mt-4" disabled>
-                파일 선택
-            </Button>
-          </div>
-          <div className="p-4 border rounded-lg bg-secondary/30">
-            <h4 className="font-semibold text-left">진행 과정</h4>
-            <ol className="list-decimal list-inside text-left text-sm text-muted-foreground mt-2 space-y-1">
-                <li>시간표 이미지를 업로드하면 시스템이 자동으로 텍스트를 분석합니다 (OCR 기능).</li>
-                <li>분석된 강의 목록 초안이 아래에 표시됩니다.</li>
-                <li>잘못 인식된 정보는 직접 수정하고, 누락된 강의는 수동으로 추가할 수 있습니다.</li>
-                <li>'저장하기' 버튼을 누르면 최종 시간표가 데이터베이스에 저장됩니다.</li>
-            </ol>
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-between">
-           <Button variant="outline" asChild>
+             <p className="mt-1 text-muted-foreground">
+                この作業は学期の初めなど、時間割が更新された際に行ってください。
+            </p>
+        </div>
+
+        <div className="space-y-8">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-3 text-2xl">
+                        <BookMarked className="h-7 w-7 text-accent" />
+                        1. ブックマークレットの準備
+                    </CardTitle>
+                    <CardDescription>
+                        ※ 既に「時間割インポート」ブックマークレットを登録している方は次のステップへ進んでください。
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <p>ブラウザで時間割を簡単に取得するための「ブックマークレット」を登録します。</p>
+                    <div>
+                        <p className="font-semibold">ステップ1: 下のJavaScriptコードをコピーしてください。</p>
+                        <div className="mt-2 p-4 bg-muted rounded-md relative font-mono text-sm">
+                            <pre className="overflow-x-auto pr-16"><code>{bookmarkletCode}</code></pre>
+                            <Button
+                                variant="secondary"
+                                size="icon"
+                                className="absolute top-2 right-2 h-8 w-8"
+                                onClick={copyToClipboard}
+                            >
+                                <FileCode className="h-4 w-4" />
+                                <span className="sr-only">Copy code</span>
+                            </Button>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            ※ `hus-scheduler-project.vercel.app` 부분은 이 앱의 실제 도메인입니다.
+                        </p>
+                    </div>
+                     <div>
+                        <p className="font-semibold">ステップ2: お使いのブラウザのブックマークバーに、コピーしたコードをURLとして登録します。</p>
+                        <p className="text-sm text-muted-foreground">
+                           ブックマークの名前は「時間割インポート」など、分かりやすいものに設定してください。
+                        </p>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                 <CardHeader>
+                    <CardTitle className="flex items-center gap-3 text-2xl">
+                        <ExternalLink className="h-7 w-7 text-accent" />
+                        2. 時間割データの登録・更新
+                    </CardTitle>
+                    <CardDescription>
+                        準備したブックマークレットを使って、時間割をインポートします。
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <p><strong className="text-primary">ステップ1:</strong> 下のボタンをクリックして、新しいタブでHUS-UNIPAを開き、ログインしてください。</p>
+                        <Button asChild>
+                            <a href="https://unipa.hus.ac.jp/uprx/" target="_blank" rel="noopener noreferrer">
+                                HUS-UNIPAを開く
+                                <ExternalLink className="ml-2 h-4 w-4" />
+                            </a>
+                        </Button>
+                    </div>
+                    <p><strong className="text-primary">ステップ2:</strong> ログイン後、時間割が表示されているページ（履修授業一覧など）へ移動してください。</p>
+                    <p><strong className="text-primary">ステップ3:</strong> ブラウザのブックマークバーから、準備しておいた「時間割インポート」ブックマークレットをクリックします。</p>
+                    <p><strong className="text-primary">ステップ4:</strong> 画面に「時間割情報をHUS-schedulerに転送しますか？」という確認画面が表示されたら、「はい、転送する」をクリックします。</p>
+                    <p><strong className="text-primary">ステップ5:</strong> 処理が完了すると、自動的に時間割の確認ページに移動します。内容を確認・修正し、「保存して完了」ボタンを押してください。</p>
+                </CardContent>
+            </Card>
+        </div>
+        
+        <div className="mt-8">
+            <Button variant="outline" asChild>
                 <Link href="/dashboard">
                     <ArrowLeft className="mr-2 h-4 w-4" />
-                    대시보드로 돌아가기
+                    ダッシュボードに戻る
                 </Link>
-           </Button>
-           <Button disabled>저장하기</Button>
-        </CardFooter>
-      </Card>
+            </Button>
+        </div>
     </div>
   );
 }

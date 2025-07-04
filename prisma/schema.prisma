@@ -46,6 +46,7 @@ model User {
   isSetupComplete    Boolean   @default(false)
   onboardingData     Json?
   archived           Boolean   @default(false)
+  tempCoursesData    Json?
 
   accounts Account[]
   sessions Session[]
@@ -61,13 +62,6 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model Weather {
-  id          String   @id @default(cuid())
-  locationKey String   @unique
-  data        Json
-  updatedAt   DateTime @updatedAt
-}
-
 model Course {
   id          String   @id @default(cuid())
   userId      String
@@ -75,9 +69,7 @@ model Course {
 
   courseName  String
   dayOfWeek   Int      // 0: Sunday, 1: Monday, ..., 6: Saturday
-  period      Int      // 1, 2, 3, 4, 5
-  startTime   String   // "09:00"
-  endTime     String   // "10:30"
+  period      Int      // e.g. 1, 2, 3, 4, 5
   location    String?
 
   createdAt   DateTime @default(now())
@@ -85,16 +77,25 @@ model Course {
 }
 
 model Task {
-  id                 String   @id @default(cuid())
-  userId             String
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title              String
-  dueDate            DateTime
-  priority           String
-  course             String?
-  isCompleted        Boolean  @default(false)
-  isMoodleAssignment Boolean  @default(false)
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  title       String
+  dueDate     DateTime
+  priority    String   // "高", "中", "低"
+  courseName  String?
+  isMoodle    Boolean  @default(false)
+  completed   Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+
+model Weather {
+  id          String   @id @default(cuid())
+  locationKey String   @unique
+  data        Json
+  updatedAt   DateTime @updatedAt
 }
