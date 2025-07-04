@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -48,10 +49,19 @@ export default function ManageSchedulePage() {
                         ※ 既に「時間割インポート」ブックマークレットを登録している方は次のステップへ進んでください。
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                    <p>ブラウザで時間割を簡単に取得するための「ブックマークレット」を登録します。</p>
+                <CardContent className="space-y-6">
                     <div>
-                        <p className="font-semibold">ステップ1: 下のJavaScriptコードをコピーしてください。</p>
+                        <p className="font-semibold">ステップ1: 下のボタンをブックマークバーにドラッグ＆ドロップしてください。</p>
+                         <div className="mt-2">
+                            <Button asChild variant="secondary">
+                                <a href={bookmarkletCode} onClick={(e) => e.preventDefault()}>
+                                    時間割インポート
+                                </a>
+                            </Button>
+                        </div>
+                    </div>
+                     <div>
+                        <p className="font-semibold">ステップ2: (ドラッグできない場合) 下のJavaScriptコードをコピーし、手動でブックマークを作成してください。</p>
                         <div className="mt-2 p-4 bg-muted rounded-md relative font-mono text-sm">
                             <pre className="overflow-x-auto pr-16"><code>{bookmarkletCode}</code></pre>
                             <Button
@@ -65,12 +75,6 @@ export default function ManageSchedulePage() {
                             </Button>
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
-                            ※ `hus-scheduler-project.vercel.app` 부분은 이 앱의 실제 도메인입니다.
-                        </p>
-                    </div>
-                     <div>
-                        <p className="font-semibold">ステップ2: お使いのブラウザのブックマークバーに、コピーしたコードをURLとして登録します。</p>
-                        <p className="text-sm text-muted-foreground">
                            ブックマークの名前は「時間割インポート」など、分かりやすいものに設定してください。
                         </p>
                     </div>
