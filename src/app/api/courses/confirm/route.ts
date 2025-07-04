@@ -6,6 +6,16 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import prisma from '@/lib/prisma';
 
+// 교시별 시간 정보
+const periodTimes: { [key: number]: { start: string; end: string } } = {
+  1: { start: '09:00', end: '10:30' },
+  2: { start: '10:40', end: '12:10' },
+  3: { start: '13:00', end: '14:30' },
+  4: { start: '14:40', end: '16:10' },
+  5: { start: '16:20', end: '17:50' },
+  6: { start: '18:00', end: '19:30' },
+};
+
 // 최종 강의 정보를 저장하는 POST 핸들러
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -31,13 +41,20 @@ export async function POST(request: Request) {
       }),
       // 2. 새로운 강의 정보 생성
       prisma.course.createMany({
-        data: finalCourses.map(course => ({
-          courseName: course.courseName,
-          dayOfWeek: Number(course.dayOfWeek),
-          period: Number(course.period),
-          location: course.location,
-          userId: userId,
-        })),
+        data: finalCourses.map(course => {
+          const period = Number(course.period);
+          const times = periodTimes[period] || { start: 'N/A', end: 'N/A' };
+          
+          return {
+            courseName: course.courseName,
+            dayOfWeek: Number(course.dayOfWeek),
+            period: period,
+            startTime: times.start,
+            endTime: times.end,
+            location: course.location,
+            userId: userId,
+          };
+        }),
       }),
     ]);
 

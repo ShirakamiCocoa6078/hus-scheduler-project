@@ -1,11 +1,30 @@
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+model User {
+  id              String           @id @default(cuid())
+  name            String?
+  email           String?          @unique
+  emailVerified   DateTime?
+  image           String?
+  accounts        Account[]
+  sessions        Session[]
+  courses         Course[]
+  tasks           Task[]
+  isSetupComplete Boolean          @default(false)
+  archived        Boolean          @default(false)
+  onboardingData  Json?
+  tempCoursesData Json?            @default("[]")
 }
 
 model Account {
@@ -21,8 +40,7 @@ model Account {
   scope             String?
   id_token          String? @db.Text
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -35,28 +53,20 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model User {
-  id              String    @id @default(cuid())
-  name            String?
-  email           String?   @unique
-  emailVerified   DateTime?
-  image           String?
-  onboardingData  Json?
-  isSetupComplete Boolean   @default(false)
-  archived        Boolean   @default(false)
-  tempCoursesData Json?
-  accounts        Account[]
-  sessions        Session[]
-  courses         Course[]
-  tasks           Task[]
-}
-
 model VerificationToken {
   identifier String
   token      String   @unique
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model Weather {
+  id          String   @id @default(cuid())
+  locationKey String   @unique // e.g., "sapporo_teine"
+  data        Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Course {
@@ -66,35 +76,26 @@ model Course {
   courseName String
   dayOfWeek  Int
   period     Int
+  startTime  String
+  endTime    String
   location   String?
-  tasks      Task[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+  tasks      Task[]
 }
 
 model Task {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   courseId    String
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  type        String   // "ASSIGNMENT" or "EXAM"
+  type        String // "ASSIGNMENT" or "EXAM"
   title       String
   dueDate     DateTime
-
-  location    String?  // Exam specific
-  period      Int?     // Exam specific
-
-  isCompleted Boolean  @default(false) // Assignment specific
-
+  location    String?
+  period      Int?
+  isCompleted Boolean  @default(false)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model Weather {
-  locationKey String   @id
-  data        Json
   updatedAt   DateTime @updatedAt
 }
