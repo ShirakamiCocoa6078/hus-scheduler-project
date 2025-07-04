@@ -1,4 +1,4 @@
-
+// src/types/next-auth.d.ts
 import type { DefaultSession, User as NextAuthUser } from "next-auth";
 import type { JWT as NextAuthJWT } from "next-auth/jwt";
 
@@ -13,6 +13,13 @@ interface CommutePlan {
 interface OnboardingData {
   department?: string;
   commutePlan?: CommutePlan;
+}
+
+// Course 타입을 앱 전체에서 재사용할 수 있도록 export
+export interface Course {
+  id: string;
+  courseName: string;
+  // 필요에 따라 다른 필드 추가 가능
 }
 
 declare module "next-auth" {
