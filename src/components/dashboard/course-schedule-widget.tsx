@@ -36,7 +36,16 @@ export function CourseScheduleWidget() {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch('/api/courses/today');
+        // 1. 클라이언트의 현재 날짜를 YYYY-MM-DD 형식으로 생성
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const todayDateString = `${year}-${month}-${day}`;
+
+        // 2. API 요청 시 date 파라미터를 추가하여 전송
+        const response = await fetch(`/api/courses/today?date=${todayDateString}`);
+
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.message || '講義情報の読み込みに失敗しました。');
