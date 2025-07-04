@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Link from 'next/link';
 import { Label } from "@/components/ui/label"; 
 
+
 // Label 컴포넌트가 실제로 import 되었는지 확인하기 위해 console.log를 추가합니다.
 console.log("Label component imported:", typeof Label);
 

@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import type { Element } from 'cheerio';
+import { Label } from "@/components/ui/label"; 
 
 const CACHE_DURATION_HOURS = 1;
 

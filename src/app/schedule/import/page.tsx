@@ -11,6 +11,7 @@ import { Loader2, Trash2, PlusCircle, ArrowLeft, Save, AlertTriangle } from 'luc
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Label } from "@/components/ui/label"; 
 
 interface Course {
   courseName: string;
