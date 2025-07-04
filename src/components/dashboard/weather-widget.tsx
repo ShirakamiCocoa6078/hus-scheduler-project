@@ -1,195 +1,152 @@
 
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Loader2 as LoaderIcon, AlertTriangle, ArrowUp, ArrowDown, Cloudy, Umbrella, RefreshCw } from "lucide-react";
+import { Thermometer, Wind, Droplets, Loader2 as LoaderIcon, AlertTriangle } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useState, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
-// New interfaces for OpenWeatherMap data
-interface WeatherData {
-  current: {
-    temp: number;
-    weather: string;
-    icon: string;
-  };
-  hourly: {
-    time: number;
-    temp: number;
-    icon: string;
-    pop: number;
-  }[];
-  daily: {
-    date: string;
-    temp_max: number;
-    temp_min: number;
-    weather: string;
-    icon: string;
-    pop: number;
-  }[];
+// API가 보내주는 실제 데이터 구조와 일치하는 타입 정의
+interface HourlyData {
+  time: string;
+  weather: string;
+  icon_url?: string;
+  temperature_c: string;
+  humidity_percent: string;
+  precipitation_mm: string;
+  wind_direction: string | null;
+  wind_speed_ms: string | null;
 }
 
-const WeatherIcon = ({ iconCode, alt, size = 52 }: { iconCode: string, alt: string, size?: number }) => (
-  <Image
-    src={`https://openweathermap.org/img/wn/${iconCode}@2x.png`}
-    alt={alt}
-    width={size}
-    height={size}
-    unoptimized
-  />
-);
+interface DailyData {
+    date: string;
+    weather: string;
+    icon_url?: string;
+    temp_high_c: string | null;
+    temp_low_c: string | null;
+    precipitation_percent: string;
+}
+
+interface WeatherData {
+  today: HourlyData[];
+  tomorrow: HourlyData[];
+  weekly: DailyData[];
+}
 
 export function WeatherWidget() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchWeather = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // Use no-store to ensure the browser doesn't cache the request for manual refresh
-      const response = await fetch('/api/weather', { cache: 'no-store' });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: "Server response could not be parsed as JSON." }));
-        throw new Error(errorData.message || `HTTP Error! Status: ${response.status}`);
+  useEffect(() => {
+    const fetchWeather = async () => {
+      setIsLoading(true);
+      setError(null);
+      console.log("[WeatherWidget] Fetching weather data...");
+
+      try {
+        const response = await fetch('/api/weather');
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: "서버 응답을 JSON으로 파싱할 수 없습니다." }));
+          throw new Error(errorData.message || `HTTP 에러! Status: ${response.status}`);
+        }
+        
+        const data: WeatherData = await response.json();
+        
+        console.log("[WeatherWidget] Parsed API data:", data);
+
+        // 데이터 구조 유효성 검사를 더 강화합니다.
+        if (!data || !Array.isArray(data.today) || data.today.length === 0 || !Array.isArray(data.weekly) || data.weekly.length === 0) {
+          console.error("[WeatherWidget] Received data is missing required fields or is empty.");
+          throw new Error("서버로부터 유효한 날씨 데이터를 받지 못했습니다.");
+        }
+
+        setWeather(data);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "알 수 없는 에러 발생";
+        console.error("[WeatherWidget] Failed to fetch weather data:", err);
+        setError(message);
+      } finally {
+        setIsLoading(false);
+        console.log("[WeatherWidget] Fetch process finished.");
       }
-      const data: WeatherData = await response.json();
-      if (!data || !data.current || !data.hourly || !data.daily) {
-        throw new Error("Weather data from server is incomplete or in the wrong format.");
-      }
-      setWeather(data);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "An unknown error occurred";
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
+    };
+
+    fetchWeather();
   }, []);
 
-  useEffect(() => {
-    fetchWeather();
-  }, [fetchWeather]);
-
-  if (isLoading && !weather) {
+  if (isLoading) {
     return (
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="text-xl font-headline text-primary flex items-center">
-            <Cloudy className="mr-3 h-6 w-6" /> 天気
+            <Thermometer className="mr-3 h-6 w-6" /> 天気
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex items-center justify-center h-56">
+        <CardContent className="flex items-center justify-center h-40">
           <LoaderIcon className="h-8 w-8 animate-spin text-primary" />
         </CardContent>
       </Card>
     );
   }
 
-  if (error || !weather) {
+  if (error) {
     return (
-      <Card className="shadow-lg">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-xl font-headline text-primary flex items-center">
-            <Cloudy className="mr-3 h-6 w-6" /> 天気
+       <Card className="shadow-lg border-destructive">
+        <CardHeader>
+          <CardTitle className="text-xl font-headline text-destructive flex items-center">
+            <AlertTriangle className="mr-3 h-6 w-6" /> 天気情報の取得に失敗
           </CardTitle>
-           <Button variant="ghost" size="icon" onClick={fetchWeather} disabled={isLoading}>
-              <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-          </Button>
         </CardHeader>
-        <CardContent className="text-center py-8">
-            <div className="mx-auto bg-destructive/10 text-destructive rounded-full h-16 w-16 flex items-center justify-center mb-4">
-                <AlertTriangle className="h-8 w-8" />
-            </div>
-            <p className="text-muted-foreground font-semibold">天気情報を読み込めませんでした</p>
-            <CardDescription className="text-xs mt-2">
-                {error || "데이터가 없습니다."}<br/>しばらくしてから再度お試しください。
-            </CardDescription>
+        <CardContent>
+          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-xs text-muted-foreground mt-2">しばらくしてからページを更新してください。</p>
         </CardContent>
       </Card>
     );
   }
-
-  const todayForecast = weather.daily[0];
+  
+  if (!weather) {
+    return null; // 데이터가 없는 경우 아무것도 렌더링하지 않음
+  }
+  
+  // 현재 시간에 가장 가까운 예보를 찾습니다.
+  const now = new Date();
+  const currentHour = now.getHours();
+  // 3시간 단위 예보이므로 현재 시간과 가장 가까운 미래 또는 현재의 예보를 찾습니다.
+  const currentForecast = weather.today.find(f => parseInt(f.time) >= currentHour) || weather.today[weather.today.length - 1];
+  const weeklyForecastToday = weather.weekly[0];
 
   return (
     <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
-        <CardHeader>
-            <div className="flex justify-between items-start">
-                <div>
-                    <div className="flex items-center gap-2">
-                        <CardTitle className="text-xl font-headline text-primary">札幌市の天気</CardTitle>
-                        <Button variant="ghost" size="icon" onClick={fetchWeather} disabled={isLoading} className="h-7 w-7">
-                            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-                        </Button>
-                    </div>
-                    <CardDescription className="capitalize">{weather.current.weather}</CardDescription>
-                </div>
-                <WeatherIcon iconCode={weather.current.icon} alt={weather.current.weather} size={52} />
+      <CardHeader>
+        <CardTitle className="text-xl font-headline text-primary flex items-center justify-between">
+          <span>札幌(手稲)の天気</span>
+          {currentForecast.icon_url && <Image src={currentForecast.icon_url} alt={currentForecast.weather} width={40} height={40} unoptimized />}
+        </CardTitle>
+        <CardDescription>{currentForecast.weather}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex justify-between items-center">
+            <p className="text-5xl font-bold text-primary">{currentForecast.temperature_c}°C</p>
+            <div className="text-right">
+                <p className="text-sm">最高: {weeklyForecastToday.temp_high_c}°C</p>
+                <p className="text-sm">最低: {weeklyForecastToday.temp_low_c}°C</p>
             </div>
-            <div className="flex items-end justify-between pt-2">
-                <span className="text-5xl font-bold text-primary">{weather.current.temp}°C</span>
-                <div className="flex flex-col items-end text-sm">
-                    {todayForecast.temp_max && <div className="flex items-center text-red-500"><ArrowUp className="h-4 w-4 mr-1"/>{todayForecast.temp_max}°</div>}
-                    {todayForecast.temp_min && <div className="flex items-center text-blue-500"><ArrowDown className="h-4 w-4 mr-1"/>{todayForecast.temp_min}°</div>}
-                </div>
-            </div>
-        </CardHeader>
-
-        <CardContent className="pt-0">
-            <Tabs defaultValue="hourly">
-                <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="hourly">時間別</TabsTrigger>
-                    <TabsTrigger value="daily">週間</TabsTrigger>
-                </TabsList>
-                <TabsContent value="hourly" className="mt-4">
-                    <ScrollArea className="w-full whitespace-nowrap">
-                        <div className="flex space-x-4 pb-4">
-                            {weather.hourly.map((hour, index) => (
-                                <div key={`hour-${index}`} className="flex flex-col items-center justify-center space-y-1 p-2 rounded-md border border-border flex-shrink-0 w-20">
-                                    <p className="text-sm font-medium">{hour.time}時</p>
-                                    <WeatherIcon iconCode={hour.icon} alt="weather icon" size={40} />
-                                    <p className="font-semibold">{hour.temp}°</p>
-                                    <div className="flex items-center text-xs text-blue-400">
-                                        <Umbrella className="h-3 w-3 mr-1" />
-                                        <span>{hour.pop}%</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <ScrollBar orientation="horizontal" />
-                    </ScrollArea>
-                </TabsContent>
-                <TabsContent value="daily" className="mt-2 space-y-2">
-                    {weather.daily.map((day, index) => (
-                        <div key={`day-${index}`} className="flex items-center justify-between p-2 rounded-md hover:bg-secondary/50">
-                            <div className="flex items-center gap-3">
-                                <WeatherIcon iconCode={day.icon} alt={day.weather} size={32} />
-                                <div>
-                                    <p className="font-semibold">{day.date}</p>
-                                    <p className="text-xs text-muted-foreground capitalize">{day.weather}</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm">
-                                <span className="text-red-500 w-8 text-right">{day.temp_max}°</span>
-                                <span className="text-blue-500 w-8 text-right">{day.temp_min}°</span>
-                                <span className="text-blue-400 w-12 text-right flex items-center justify-end gap-1">
-                                  <Umbrella className="h-3 w-3" />
-                                  {day.pop}%
-                                </span>
-                            </div>
-                        </div>
-                    ))}
-                </TabsContent>
-            </Tabs>
-             <p className="text-xs text-muted-foreground text-center pt-2">
-                Powered by OpenWeatherMap
-            </p>
-        </CardContent>
+        </div>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="flex items-center">
+            <Droplets className="mr-2 h-5 w-5 text-primary/70" />
+            <span>湿度: {currentForecast.humidity_percent}%</span>
+          </div>
+          <div className="flex items-center">
+            <Wind className="mr-2 h-5 w-5 text-primary/70" />
+            <span>{currentForecast.wind_direction} {currentForecast.wind_speed_ms}m/s</span>
+          </div>
+        </div>
+        {/* 시간별/주간별 예보를 표시하는 추가 UI를 여기에 구현할 수 있습니다. */}
+      </CardContent>
     </Card>
   );
 }
