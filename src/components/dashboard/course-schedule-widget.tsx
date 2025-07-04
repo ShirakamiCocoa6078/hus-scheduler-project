@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -8,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { CalendarDays, BookOpen, Clock, MapPin, Loader2, AlertTriangle, PlusCircle, Pencil } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 interface Course {
   id: string;
@@ -39,12 +39,12 @@ export function CourseScheduleWidget() {
         const response = await fetch('/api/courses/today');
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.message || '강의 정보를 불러오는 데 실패했습니다.');
+          throw new Error(errorData.message || '講義情報の読み込みに失敗しました。');
         }
         const data: Course[] = await response.json();
         setCourses(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.');
+        setError(err instanceof Error ? err.message : '不明なエラーが発生しました。');
       } finally {
         setIsLoading(false);
       }
@@ -67,7 +67,7 @@ export function CourseScheduleWidget() {
       return (
         <div className="text-center py-8 text-destructive">
           <AlertTriangle className="mx-auto h-12 w-12 mb-4" />
-          <p className="font-semibold">오류 발생</p>
+          <p className="font-semibold">エラー発生</p>
           <p className="text-sm">{error}</p>
         </div>
       );
@@ -78,12 +78,12 @@ export function CourseScheduleWidget() {
         <div className="text-center py-8">
           <CalendarDays className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
           <p className="text-muted-foreground font-medium text-lg">
-            오늘은 강의가 없거나, 시간표가 등록되지 않았습니다.
+            本日は講義の予定がありません。
           </p>
           <Button asChild className="mt-4">
             <Link href="/schedule/manage">
               <PlusCircle className="mr-2 h-4 w-4" />
-              강의 시간표 추가하기
+              時間割を追加する
             </Link>
           </Button>
         </div>
@@ -94,7 +94,7 @@ export function CourseScheduleWidget() {
     const currentTimeValue = now.getHours() * 100 + now.getMinutes();
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         {courses.map((course) => {
           const startTimeValue = parseInt(course.startTime.replace(':', ''), 10);
           const endTimeValue = parseInt(course.endTime.replace(':', ''), 10);
@@ -104,23 +104,25 @@ export function CourseScheduleWidget() {
             <div 
               key={course.id} 
               className={cn(
-                "p-4 rounded-md border bg-secondary/30 hover:bg-secondary/50 transition-all",
-                isCurrent && "border-primary ring-2 ring-primary shadow-lg"
+                "p-4 rounded-md border transition-all",
+                isCurrent ? 'border-primary shadow-md bg-primary/10' : 'bg-secondary/30'
               )}
             >
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-start">
                   <h3 className="font-semibold text-lg text-accent">{course.courseName}</h3>
-                  {isCurrent && <span className="text-xs font-bold text-primary animate-pulse">진행 중</span>}
+                  {isCurrent && <Badge variant="default">進行中</Badge>}
               </div>
-              <p className="text-sm text-foreground flex items-center mt-1">
-                <Clock className="mr-2 h-4 w-4 text-primary" /> 
-                {course.period}교시 ({course.startTime} - {course.endTime})
-              </p>
-              {course.location && (
-                <p className="text-sm text-foreground flex items-center mt-1">
-                  <MapPin className="mr-2 h-4 w-4 text-primary" /> {course.location}
-                </p>
-              )}
+              <div className="mt-2 space-y-1 text-sm">
+                  <p className="text-foreground flex items-center">
+                    <Clock className="mr-2 h-4 w-4 text-primary" /> 
+                    {course.period}限 ({course.startTime} - {course.endTime})
+                  </p>
+                  {course.location && (
+                    <p className="text-muted-foreground flex items-center">
+                      <MapPin className="mr-2 h-4 w-4" /> {course.location}
+                    </p>
+                  )}
+              </div>
             </div>
           );
         })}
@@ -130,7 +132,7 @@ export function CourseScheduleWidget() {
 
   return (
     <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-xl font-headline text-primary flex items-center">
           <BookOpen className="mr-3 h-6 w-6" />
           本日のスケジュール
