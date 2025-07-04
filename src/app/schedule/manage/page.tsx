@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
@@ -90,7 +91,7 @@ function ImportTabContent() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const bookmarkletCode = `javascript:(function(){const s=document.createElement("script");s.src="https://hus-scheduler-project.vercel.app/js/unipa-importer.js";document.body.appendChild(s);})();`;
+  const bookmarkletCode = `javascript:(function(){var s=document.createElement("script");s.src="https://hus-scheduler-project.vercel.app/js/unipa-importer.js";document.body.appendChild(s);})();`;
 
   useEffect(() => {
     const data = searchParams.get('data');
