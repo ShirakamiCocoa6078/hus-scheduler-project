@@ -1,11 +1,13 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-}
-
-generator client {
-  provider = "prisma-client-js"
 }
 
 model Account {
@@ -36,16 +38,19 @@ model Session {
 }
 
 model User {
-  id               String    @id @default(cuid())
-  name             String?
-  email            String?   @unique
-  emailVerified    DateTime?
-  image            String?
-  accounts         Account[]
-  sessions         Session[]
-  isSetupComplete  Boolean   @default(false)
-  archived         Boolean   @default(false)
-  onboardingData   Json?
+  id                 String    @id @default(cuid())
+  name               String?
+  email              String?   @unique
+  emailVerified      DateTime?
+  image              String?
+  isSetupComplete    Boolean   @default(false)
+  onboardingData     Json?
+  archived           Boolean   @default(false)
+
+  accounts Account[]
+  sessions Session[]
+  courses  Course[]
+  tasks    Task[]
 }
 
 model VerificationToken {
@@ -57,8 +62,39 @@ model VerificationToken {
 }
 
 model Weather {
-  id          String    @id @default(cuid())
-  locationKey String    @unique // 예: "sapporo_teine"
-  data        Json      // 스크레이핑한 전체 날씨 정보를 JSON 형태로 저장
-  updatedAt   DateTime  @updatedAt
+  id          String   @id @default(cuid())
+  locationKey String   @unique
+  data        Json
+  updatedAt   DateTime @updatedAt
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  courseName  String
+  dayOfWeek   Int      // 0: Sunday, 1: Monday, ..., 6: Saturday
+  period      Int      // 1, 2, 3, 4, 5
+  startTime   String   // "09:00"
+  endTime     String   // "10:30"
+  location    String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Task {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title              String
+  dueDate            DateTime
+  priority           String
+  course             String?
+  isCompleted        Boolean  @default(false)
+  isMoodleAssignment Boolean  @default(false)
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }

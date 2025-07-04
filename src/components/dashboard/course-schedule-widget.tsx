@@ -1,71 +1,143 @@
 
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CalendarDays, BookOpen, Clock, MapPin } from "lucide-react";
-import Image from "next/image";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { CalendarDays, BookOpen, Clock, MapPin, Loader2, AlertTriangle, PlusCircle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 interface Course {
   id: string;
-  name: string;
-  code: string;
-  time: string;
-  location: string;
-  instructor: string;
-  day: string; // Example: "Monday", "Tuesday"
+  courseName: string;
+  period: number;
+  startTime: string;
+  endTime: string;
+  location: string | null;
 }
 
-// Mock data - In a real app, this would come from an API or user input
-const mockCourses: Course[] = [
-  { id: "1", name: "量子コンピュータ特論", code: "CS505", time: "10:00 - 11:30", location: "301号室、工学棟", instructor: "エララ・ヴァンス博士", day: "月曜日" },
-  { id: "2", name: "有機化学合成", code: "CHM320", time: "13:00 - 14:30", location: "2B実験室、理学棟", instructor: "田中健司教授", day: "月曜日" },
-  { id: "3", name: "文学理論", code: "LIT400", time: "09:00 - 10:30", location: "Aホール、文学部", instructor: "アーニャ・シャルマ博士", day: "火曜日" },
-];
-
-// Helper to get today's day in Japanese
-const getTodayJapanese = (): string => {
-  const days = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"];
-  return days[new Date().getDay()];
-};
-
+const CourseSkeleton = () => (
+    <div className="p-4 rounded-md border bg-secondary/30">
+        <Skeleton className="h-5 w-3/4 mb-2" />
+        <Skeleton className="h-4 w-1/2 mb-2" />
+        <Skeleton className="h-4 w-1/3" />
+    </div>
+);
 
 export function CourseScheduleWidget() {
-  const today = getTodayJapanese();
-  const todayCourses = mockCourses.filter(course => course.day === today);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch('/api/courses/today');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || '강의 정보를 불러오는 데 실패했습니다.');
+        }
+        const data: Course[] = await response.json();
+        setCourses(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCourses();
+  }, []);
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="space-y-4">
+          <CourseSkeleton />
+          <CourseSkeleton />
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="text-center py-8 text-destructive">
+          <AlertTriangle className="mx-auto h-12 w-12 mb-4" />
+          <p className="font-semibold">오류 발생</p>
+          <p className="text-sm">{error}</p>
+        </div>
+      );
+    }
+    
+    if (courses.length === 0) {
+      return (
+        <div className="text-center py-8">
+          <CalendarDays className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground font-medium text-lg">
+            오늘은 강의가 없거나, 시간표가 등록되지 않았습니다.
+          </p>
+          <Button asChild className="mt-4">
+            <Link href="/schedule/manage">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              강의 시간표 추가하기
+            </Link>
+          </Button>
+        </div>
+      );
+    }
+    
+    const now = new Date();
+    const currentTimeValue = now.getHours() * 100 + now.getMinutes();
+
+    return (
+      <div className="space-y-4">
+        {courses.map((course) => {
+          const startTimeValue = parseInt(course.startTime.replace(':', ''), 10);
+          const endTimeValue = parseInt(course.endTime.replace(':', ''), 10);
+          const isCurrent = currentTimeValue >= startTimeValue && currentTimeValue < endTimeValue;
+
+          return (
+            <div 
+              key={course.id} 
+              className={cn(
+                "p-4 rounded-md border bg-secondary/30 hover:bg-secondary/50 transition-all",
+                isCurrent && "border-primary ring-2 ring-primary shadow-lg"
+              )}
+            >
+              <div className="flex justify-between items-center">
+                  <h3 className="font-semibold text-lg text-accent">{course.courseName}</h3>
+                  {isCurrent && <span className="text-xs font-bold text-primary animate-pulse">진행 중</span>}
+              </div>
+              <p className="text-sm text-foreground flex items-center mt-1">
+                <Clock className="mr-2 h-4 w-4 text-primary" /> 
+                {course.period}교시 ({course.startTime} - {course.endTime})
+              </p>
+              {course.location && (
+                <p className="text-sm text-foreground flex items-center mt-1">
+                  <MapPin className="mr-2 h-4 w-4 text-primary" /> {course.location}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardHeader>
         <CardTitle className="text-xl font-headline text-primary flex items-center">
-          <CalendarDays className="mr-3 h-6 w-6" />
+          <BookOpen className="mr-3 h-6 w-6" />
           本日のスケジュール
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {todayCourses.length > 0 ? (
-          <div className="space-y-4">
-            {todayCourses.map((course) => (
-              <div key={course.id} className="p-4 rounded-md border bg-secondary/30 hover:bg-secondary/50 transition-colors">
-                <h3 className="font-semibold text-lg text-accent">{course.name} <span className="text-sm text-muted-foreground">({course.code})</span></h3>
-                <p className="text-sm text-foreground flex items-center mt-1">
-                  <Clock className="mr-2 h-4 w-4 text-primary" /> {course.time}
-                </p>
-                <p className="text-sm text-foreground flex items-center mt-1">
-                  <MapPin className="mr-2 h-4 w-4 text-primary" /> {course.location}
-                </p>
-                <p className="text-sm text-muted-foreground flex items-center mt-1">
-                  <BookOpen className="mr-2 h-4 w-4" /> 担当教員: {course.instructor}
-                </p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <Image src="https://placehold.co/300x200.png" alt="本日の授業はありません" width={300} height={200} className="mx-auto rounded-md mb-4 opacity-70" data-ai-hint="empty calendar" />
-            <p className="text-muted-foreground font-medium text-lg">本日は授業の予定がありません！</p>
-            <p className="text-sm text-muted-foreground">自由時間を楽しむか、勉強に励みましょう。</p>
-          </div>
-        )}
+        {renderContent()}
       </CardContent>
     </Card>
   );
