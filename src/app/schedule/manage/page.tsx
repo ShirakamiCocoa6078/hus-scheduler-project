@@ -6,17 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Trash2, PlusCircle, Save, BookMarked, ExternalLink, FileCode } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Link from 'next/link';
-import { Label } from "@/components/ui/label"; 
-
-
-// Label 컴포넌트가 실제로 import 되었는지 확인하기 위해 console.log를 추가합니다.
-console.log("Label component imported:", typeof Label);
+import { Label as FormLabel } from "@/components/ui/label"; 
 
 interface Course {
   courseName: string;
@@ -27,8 +22,8 @@ interface Course {
 
 const dayOfWeekMap: { [key: number]: string } = { 1: '月曜', 2: '火曜', 3: '水曜', 4: '木曜', 5: '金曜', 6: '土曜', 0: '日曜' };
 
-// --- Reusable Editable Table Component ---
-function EditableScheduleTable({ courses, setCourses }: { courses: Course[], setCourses: React.Dispatch<React.SetStateAction<Course[]>> }) {
+// --- Reusable Editable Table Component (Refactored to list) ---
+function EditableScheduleList({ courses, setCourses }: { courses: Course[], setCourses: React.Dispatch<React.SetStateAction<Course[]>> }) {
 
   const handleCourseChange = (index: number, field: keyof Course, value: string | number) => {
     const newCourses = [...courses];
@@ -46,39 +41,38 @@ function EditableScheduleTable({ courses, setCourses }: { courses: Course[], set
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>授業名</TableHead>
-              <TableHead>曜日</TableHead>
-              <TableHead>時限</TableHead>
-              <TableHead>教室</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {courses.map((course, index) => (
-              <TableRow key={index}>
-                <TableCell><Input value={course.courseName} onChange={(e) => handleCourseChange(index, 'courseName', e.target.value)} placeholder="例: 情報科学" /></TableCell>
-                <TableCell>
-                  <Select value={String(course.dayOfWeek)} onValueChange={(value) => handleCourseChange(index, 'dayOfWeek', Number(value))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{Object.entries(dayOfWeekMap).map(([value, label]) => (<SelectItem key={value} value={value}>{label}</SelectItem>))}</SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  <Select value={String(course.period)} onValueChange={(value) => handleCourseChange(index, 'period', Number(value))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{[1, 2, 3, 4, 5, 6].map(p => <SelectItem key={p} value={String(p)}>{p}時限</SelectItem>)}</SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell><Input value={course.location} onChange={(e) => handleCourseChange(index, 'location', e.target.value)} placeholder="例: G201" /></TableCell>
-                <TableCell><Button variant="ghost" size="icon" onClick={() => removeCourse(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+       <div className="space-y-6">
+        {courses.map((course, index) => (
+          <div key={index} className="grid grid-cols-1 md:grid-cols-10 gap-4 items-end p-4 border rounded-lg relative bg-background">
+            <div className="space-y-1 col-span-1 md:col-span-3">
+              <FormLabel htmlFor={`courseName-${index}`}>授業名</FormLabel>
+              <Input id={`courseName-${index}`} value={course.courseName} onChange={(e) => handleCourseChange(index, 'courseName', e.target.value)} placeholder="例: 情報科学" />
+            </div>
+            <div className="space-y-1 col-span-1 md:col-span-2">
+              <FormLabel htmlFor={`dayOfWeek-${index}`}>曜日</FormLabel>
+              <Select value={String(course.dayOfWeek)} onValueChange={(value) => handleCourseChange(index, 'dayOfWeek', Number(value))}>
+                <SelectTrigger id={`dayOfWeek-${index}`}><SelectValue /></SelectTrigger>
+                <SelectContent>{Object.entries(dayOfWeekMap).map(([value, label]) => (<SelectItem key={value} value={value}>{label}</SelectItem>))}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 col-span-1 md:col-span-2">
+              <FormLabel htmlFor={`period-${index}`}>時限</FormLabel>
+              <Select value={String(course.period)} onValueChange={(value) => handleCourseChange(index, 'period', Number(value))}>
+                <SelectTrigger id={`period-${index}`}><SelectValue /></SelectTrigger>
+                <SelectContent>{[1, 2, 3, 4, 5, 6].map(p => <SelectItem key={p} value={String(p)}>{p}時限</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 col-span-1 md:col-span-2">
+              <FormLabel htmlFor={`location-${index}`}>教室</FormLabel>
+              <Input id={`location-${index}`} value={course.location} onChange={(e) => handleCourseChange(index, 'location', e.target.value)} placeholder="例: G201" />
+            </div>
+            <div className="col-span-1 flex justify-end">
+               <Button variant="ghost" size="icon" onClick={() => removeCourse(index)} className="absolute top-2 right-2 md:relative md:top-auto md:right-auto" aria-label="Remove course">
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
+          </div>
+        ))}
       </div>
       <Button variant="outline" onClick={addCourse}><PlusCircle className="mr-2 h-4 w-4" />授業を追加</Button>
     </div>
@@ -176,7 +170,7 @@ function ImportTabContent() {
       {courses.length > 0 && (
         <Card>
           <CardHeader><CardTitle>インポートされたデータの確認・修正</CardTitle><CardDescription>内容を確認し、必要であれば修正してください。</CardDescription></CardHeader>
-          <CardContent><EditableScheduleTable courses={courses} setCourses={setCourses} /></CardContent>
+          <CardContent><EditableScheduleList courses={courses} setCourses={setCourses} /></CardContent>
           <CardFooter><Button onClick={handleSave} disabled={isSaving}>{isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}保存して完了</Button></CardFooter>
         </Card>
       )}
@@ -229,7 +223,7 @@ function DirectEditTabContent() {
     <Card>
       <CardHeader><CardTitle>時間割の直接編集</CardTitle><CardDescription>現在の時間割です。自由に変更、追加、削除してください。</CardDescription></CardHeader>
       <CardContent>
-        {isLoading ? (<div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>) : (<EditableScheduleTable courses={courses} setCourses={setCourses} />)}
+        {isLoading ? (<div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>) : (<EditableScheduleList courses={courses} setCourses={setCourses} />)}
       </CardContent>
       <CardFooter><Button onClick={handleSave} disabled={isSaving || isLoading}>{isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}変更を保存</Button></CardFooter>
     </Card>
