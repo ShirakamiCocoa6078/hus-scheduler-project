@@ -1,31 +1,11 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// prisma/schema.prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
 generator client {
   provider = "prisma-client-js"
-}
-
-datasource db {
-  provider     = "postgresql"
-  url          = env("DATABASE_URL")
-  relationMode = "prisma"
-}
-
-model User {
-  id              String    @id @default(cuid())
-  name            String?
-  email           String?   @unique
-  emailVerified   DateTime?
-  image           String?
-  accounts        Account[]
-  sessions        Session[]
-  courses         Course[]
-  tasks           Task[]
-  onboardingData  Json?
-  isSetupComplete Boolean   @default(false)
-  archived        Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
 }
 
 model Account {
@@ -41,8 +21,7 @@ model Account {
   scope             String?
   id_token          String? @db.Text
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -63,36 +42,57 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+model User {
+  id                String    @id @default(cuid())
+  name              String?
+  email             String?   @unique
+  emailVerified     DateTime?
+  image             String?
+  accounts          Account[]
+  sessions          Session[]
+  isSetupComplete   Boolean   @default(false)
+  onboardingData    Json?
+  archived          Boolean   @default(false)
+  // Relation to Courses
+  courses           Course[]
+  // Relation to Tasks
+  tasks             Task[]
+  // Temporary storage for course import
+  tempCoursesData   Json?
+}
+
 model Course {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courseName String
-  dayOfWeek  Int
-  period     Int
-  location   String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseName  String
+  dayOfWeek   Int
+  period      Int
+  location    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tasks       Task[] // Relation to Tasks
 }
 
 model Task {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String
-  dueDate   DateTime
-  priority  String   // "High", "Medium", "Low"
-  courseId  String?
-  course    Course?  @relation(fields: [courseId], references: [id])
-  isCompleted Boolean @default(false)
-  isMoodleAssignment Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId           String?
+  course             Course?   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  title              String
+  dueDate            DateTime
+  priority           String
+  isMoodleAssignment Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }
 
 model Weather {
   id          String   @id @default(cuid())
-  locationKey String   @unique // e.g., "sapporo_teine"
+  locationKey String   @unique
   data        Json
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
