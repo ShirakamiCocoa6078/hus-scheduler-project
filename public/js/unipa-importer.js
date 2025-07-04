@@ -1,147 +1,77 @@
+javascript:(function() {
+    console.log("HUS-scheduler 북마크릿을 시작합니다.");
 
-(function() {
-    'use strict';
+    const dayMap = {
+        "月": 1, "火": 2, "水": 3, "木": 4, "金": 5, "土": 6, "日": 0,
+        "月曜": 1, "火曜": 2, "水曜": 3, "木曜": 4, "金曜": 5, "土曜": 6, "日曜": 0
+    };
 
-    // --- Configuration ---
-    const APP_URL = 'https://hus-scheduler-project.vercel.app';
-    const API_ENDPOINT = `${APP_URL}/api/courses/receive-from-portal`;
-    const CONFIRM_PAGE_URL = `${APP_URL}/schedule/confirm`;
-
-    // --- Helper Functions ---
-    function createModal() {
-        const overlay = document.createElement('div');
-        overlay.id = 'hus-scheduler-overlay';
-        overlay.style.position = 'fixed';
-        overlay.style.top = '0';
-        overlay.style.left = '0';
-        overlay.style.width = '100%';
-        overlay.style.height = '100%';
-        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-        overlay.style.zIndex = '9999';
-        overlay.style.display = 'flex';
-        overlay.style.justifyContent = 'center';
-        overlay.style.alignItems = 'center';
-        overlay.style.fontFamily = 'sans-serif';
-
-        const modal = document.createElement('div');
-        modal.id = 'hus-scheduler-modal';
-        modal.style.backgroundColor = 'white';
-        modal.style.padding = '30px';
-        modal.style.borderRadius = '8px';
-        modal.style.textAlign = 'center';
-        modal.style.maxWidth = '400px';
-        modal.style.boxShadow = '0 4px 15px rgba(0,0,0,0.2)';
-
-        modal.innerHTML = `
-            <h2 style="margin-top: 0; color: #333; font-size: 1.2rem;">時間割情報を転送しますか？</h2>
-            <p style="color: #666; margin-bottom: 25px; font-size: 0.9rem;">現在のページから時間割情報を抽出し、<br><strong>HUS-scheduler</strong>に転送します。</p>
-            <div style="display: flex; justify-content: space-around;">
-                <button id="hus-scheduler-cancel" style="padding: 10px 20px; border-radius: 5px; border: 1px solid #ccc; background-color: #f0f0f0; cursor: pointer; font-size: 0.9rem;">いいえ</button>
-                <button id="hus-scheduler-confirm" style="padding: 10px 20px; border-radius: 5px; border: none; background-color: #28a745; color: white; cursor: pointer; font-size: 0.9rem;">はい、転送する</button>
-            </div>
-        `;
-        
-        overlay.appendChild(modal);
-        document.body.appendChild(overlay);
-
-        return { overlay, confirmBtn: document.getElementById('hus-scheduler-confirm'), cancelBtn: document.getElementById('hus-scheduler-cancel') };
-    }
-
-    function showStatus(message, isError = false) {
-        const modal = document.getElementById('hus-scheduler-modal');
-        if (modal) {
-            modal.innerHTML = `
-                <h2 style="color: ${isError ? '#dc3545' : '#333'}; font-size: 1.2rem;">${message}</h2>
-            `;
+    function getCourseElements() {
+        const standardSelector = '#funcForm\\:j_idt387\\:j_idt3700 .lessonArea';
+        let elements = document.querySelectorAll(standardSelector);
+        if (elements.length > 0) {
+            console.log(`성공: 표준 선택자 '${standardSelector}'로 ${elements.length}개의 강의를 찾았습니다.`);
+            return elements;
         }
+        console.warn(`경고: 표준 선택자 '${standardSelector}'로 강의를 찾지 못했습니다. 대체 선택자를 시도합니다.`);
+        
+        const alternativeSelector = '.lessonArea';
+        elements = document.querySelectorAll(alternativeSelector);
+        if (elements.length > 0) {
+            console.log(`성공: 대체 선택자 '${alternativeSelector}'로 ${elements.length}개의 강의를 찾았습니다.`);
+        } else {
+            console.error("오류: 어떤 선택자로도 강의 블록(.lessonArea)을 찾을 수 없었습니다.");
+        }
+        return elements;
     }
     
-    function dayOfWeekToInt(dayChar) {
-        const map = { '月': 1, '火': 2, '水': 3, '木': 4, '金': 5, '土': 6, '日': 0 };
-        return map[dayChar] !== undefined ? map[dayChar] : -1;
-    }
-    
-    function scrapeTimetable() {
-        console.log("Scraping started...");
-        const scheduleContainer = document.querySelector('#funcForm\\:j_idt387\\:j_idt3700');
-        if (!scheduleContainer) {
-            throw new Error("時間割のコンテナが見つかりませんでした。");
-        }
+    const courseElements = getCourseElements();
 
-        const courseElements = scheduleContainer.querySelectorAll('.ui-datalist-item .lessonArea');
-        if (courseElements.length === 0) {
-            throw new Error("授業データが見つかりませんでした。「履修授業」ページであることを確認してください。");
-        }
-        
-        console.log(`Found ${courseElements.length} course elements.`);
-        
-        const courses = [];
-        courseElements.forEach(element => {
-            const dayPeriodText = element.querySelector('.period')?.innerText.trim() || '';
-            const [dayChar, periodStr] = dayPeriodText.split(/\s+/);
-
-            const courseName = element.querySelector('.lessonTitle')?.innerText.trim() || '不明な授業';
-            const location = element.querySelector('.lessonDetail div')?.innerText.trim() || '';
-            
-            const dayOfWeek = dayOfWeekToInt(dayChar);
-            const period = parseInt(periodStr?.replace('時限', ''), 10);
-            
-            if (dayOfWeek !== -1 && !isNaN(period)) {
-                courses.push({
-                    courseName,
-                    dayOfWeek,
-                    period,
-                    location,
-                });
-            }
-        });
-        
-        console.log("Scraped courses:", courses);
-        if (courses.length === 0) {
-            throw new Error("有効な授業データを抽出できませんでした。");
-        }
-        return courses;
+    if (courseElements.length === 0) {
+        alert("시간표 데이터를 찾을 수 없습니다. HUS-UNIPA의 '履修授業' 탭에서 실행했는지 확인해주세요.");
+        return;
     }
 
-    // --- Main Logic ---
-    function main() {
-        const { overlay, confirmBtn, cancelBtn } = createModal();
-        
-        function cleanup() {
-            if(overlay) document.body.removeChild(overlay);
+    const courses = [];
+    courseElements.forEach((element, index) => {
+        const courseNameElement = element.querySelector('.lessonTitle');
+        const courseName = courseNameElement?.innerText.trim();
+
+        if (!courseName) {
+            console.warn(`${index + 1}번째 항목은 강의명이 없어 건너뜁니다.`);
+            return;
         }
 
-        cancelBtn.addEventListener('click', cleanup);
+        const dayPeriodElement = element.querySelector('.period');
+        const dayPeriodText = dayPeriodElement?.innerText.trim() || '';
+        const [dayStr, periodStr] = dayPeriodText.split(/\s+/);
+        
+        const dayOfWeek = dayMap[dayStr] ?? -1;
+        const period = parseInt(periodStr, 10) || -1;
+        
+        const locationElement = element.querySelector('.lessonDetail div');
+        const location = locationElement?.innerText.trim() || '';
 
-        confirmBtn.addEventListener('click', async () => {
-            try {
-                showStatus("時間割を抽出中...");
-                const courses = scrapeTimetable();
-                
-                showStatus("サーバーに転送中...");
-                const response = await fetch(API_ENDPOINT, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(courses)
-                });
+        if (dayOfWeek !== -1 && period !== -1) {
+            courses.push({
+                courseName,
+                dayOfWeek,
+                period,
+                location
+            });
+        }
+    });
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || `サーバーエラー: ${response.status}`);
-                }
-
-                showStatus("転送成功！確認ページに移動します...");
-                window.location.href = CONFIRM_PAGE_URL;
-
-            } catch (error) {
-                console.error("Error during import:", error);
-                showStatus(`エラー: ${error.message}`, true);
-                setTimeout(cleanup, 4000);
-            }
-        });
+    if (courses.length === 0) {
+        alert("유효한 강의 정보를 추출하지 못했습니다.");
+        return;
     }
 
-    if (!document.getElementById('hus-scheduler-overlay')) {
-        main();
+    const jsonString = JSON.stringify(courses);
+    const encodedData = btoa(encodeURIComponent(jsonString));
+    const targetUrl = `https://hus-scheduler-project.vercel.app/schedule/import?data=${encodedData}`;
+
+    if (confirm(`${courses.length}件の授業情報をHUS-schedulerにインポートしますか？\n(新しいタブで開きます)`)) {
+        window.open(targetUrl, '_blank');
     }
 })();

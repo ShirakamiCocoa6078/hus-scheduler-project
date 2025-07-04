@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -17,7 +16,7 @@ export default function ManageSchedulePage() {
         title: "コピーしました！",
         description: "ブックマークのURL欄に貼り付けてください。",
       });
-    }, (err) => {
+    }, () => {
       toast({
         title: "コピー失敗",
         description: "クリップボードへのコピーに失敗しました。",
@@ -103,8 +102,8 @@ export default function ManageSchedulePage() {
                     </div>
                     <p><strong className="text-primary">ステップ2:</strong> ログイン後、時間割が表示されているページ（履修授業一覧など）へ移動してください。</p>
                     <p><strong className="text-primary">ステップ3:</strong> ブラウザのブックマークバーから、準備しておいた「時間割インポート」ブックマークレットをクリックします。</p>
-                    <p><strong className="text-primary">ステップ4:</strong> 画面に「時間割情報をHUS-schedulerに転送しますか？」という確認画面が表示されたら、「はい、転送する」をクリックします。</p>
-                    <p><strong className="text-primary">ステップ5:</strong> 処理が完了すると、自動的に時間割の確認ページに移動します。内容を確認・修正し、「保存して完了」ボタンを押してください。</p>
+                    <p><strong className="text-primary">ステップ4:</strong> 画面に表示される確認ダイアログで「OK」をクリックすると、新しいタブで時間割の確認ページが開きます。</p>
+                    <p><strong className="text-primary">ステップ5:</strong> 自動で開かれたページで内容を確認・修正し、「保存して完了」ボタンを押してください。</p>
                 </CardContent>
             </Card>
         </div>

@@ -8,33 +8,6 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// 임시 저장된 강의 데이터를 가져오는 GET 핸들러
-export async function GET() {
-  const session = await getServerSession(authOptions);
-
-  if (!session || !session.user?.id) {
-    return NextResponse.json({ message: '認証されていません。' }, { status: 401 });
-  }
-
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { tempCoursesData: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ message: 'ユーザーが見つかりません。' }, { status: 404 });
-    }
-
-    return NextResponse.json(user.tempCoursesData, { status: 200 });
-  } catch (error) {
-    console.error('임시 강의 정보 조회 오류:', error);
-    const errorMessage = error instanceof Error ? error.message : 'サーバーエラーが発生しました。';
-    return NextResponse.json({ message: errorMessage }, { status: 500 });
-  }
-}
-
-
 // 최종 강의 정보를 저장하는 POST 핸들러
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -67,11 +40,6 @@ export async function POST(request: Request) {
           location: course.location,
           userId: userId,
         })),
-      }),
-      // 3. 임시 데이터 삭제
-      prisma.user.update({
-        where: { id: userId },
-        data: { tempCoursesData: null },
       }),
     ]);
 

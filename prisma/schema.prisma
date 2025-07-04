@@ -6,8 +6,26 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider     = "postgresql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+model User {
+  id              String    @id @default(cuid())
+  name            String?
+  email           String?   @unique
+  emailVerified   DateTime?
+  image           String?
+  accounts        Account[]
+  sessions        Session[]
+  courses         Course[]
+  tasks           Task[]
+  onboardingData  Json?
+  isSetupComplete Boolean   @default(false)
+  archived        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 model Account {
@@ -37,23 +55,6 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model User {
-  id                 String    @id @default(cuid())
-  name               String?
-  email              String?   @unique
-  emailVerified      DateTime?
-  image              String?
-  isSetupComplete    Boolean   @default(false)
-  onboardingData     Json?
-  archived           Boolean   @default(false)
-  tempCoursesData    Json?
-
-  accounts Account[]
-  sessions Session[]
-  courses  Course[]
-  tasks    Task[]
-}
-
 model VerificationToken {
   identifier String
   token      String   @unique
@@ -63,39 +64,36 @@ model VerificationToken {
 }
 
 model Course {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  courseName  String
-  dayOfWeek   Int      // 0: Sunday, 1: Monday, ..., 6: Saturday
-  period      Int      // e.g. 1, 2, 3, 4, 5
-  location    String?
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseName String
+  dayOfWeek  Int
+  period     Int
+  location   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model Task {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  title       String
-  dueDate     DateTime
-  priority    String   // "高", "中", "低"
-  courseName  String?
-  isMoodle    Boolean  @default(false)
-  completed   Boolean  @default(false)
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  dueDate   DateTime
+  priority  String   // "High", "Medium", "Low"
+  courseId  String?
+  course    Course?  @relation(fields: [courseId], references: [id])
+  isCompleted Boolean @default(false)
+  isMoodleAssignment Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
-
 
 model Weather {
   id          String   @id @default(cuid())
-  locationKey String   @unique
+  locationKey String   @unique // e.g., "sapporo_teine"
   data        Json
+  createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
