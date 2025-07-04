@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, BookOpen, Clock, MapPin, Loader2, AlertTriangle, PlusCircle } from "lucide-react";
+import { CalendarDays, BookOpen, Clock, MapPin, Loader2, AlertTriangle, PlusCircle, Pencil } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -130,11 +130,16 @@ export function CourseScheduleWidget() {
 
   return (
     <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-xl font-headline text-primary flex items-center">
           <BookOpen className="mr-3 h-6 w-6" />
           本日のスケジュール
         </CardTitle>
+        <Button variant="ghost" size="icon" asChild>
+          <Link href="/schedule/manage" aria-label="時間割を編集">
+            <Pencil className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+          </Link>
+        </Button>
       </CardHeader>
       <CardContent>
         {renderContent()}

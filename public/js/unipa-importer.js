@@ -1,77 +1,119 @@
+
 javascript:(function() {
-    console.log("HUS-scheduler 북마크릿을 시작합니다.");
+    console.clear();
+    console.log("HUS-scheduler: UNIPA Importer script started.");
 
-    const dayMap = {
-        "月": 1, "火": 2, "水": 3, "木": 4, "金": 5, "土": 6, "日": 0,
-        "月曜": 1, "火曜": 2, "水曜": 3, "木曜": 4, "金曜": 5, "土曜": 6, "日曜": 0
-    };
-
-    function getCourseElements() {
-        const standardSelector = '#funcForm\\:j_idt387\\:j_idt3700 .lessonArea';
-        let elements = document.querySelectorAll(standardSelector);
-        if (elements.length > 0) {
-            console.log(`성공: 표준 선택자 '${standardSelector}'로 ${elements.length}개의 강의를 찾았습니다.`);
-            return elements;
+    function parseCourses() {
+        const scheduleContainer = document.querySelector('div.rishu-koma-list-page-body-sp, div.rishu-koma-list-page-body');
+        if (!scheduleContainer) {
+            console.error("Importer Error: Could not find the main schedule container. The page structure might have changed.");
+            alert("時間割コンテナが見つかりませんでした。ページの構造が変更された可能性があります。「履修授業」タブで実行しているか確認してください。");
+            return null;
         }
-        console.warn(`경고: 표준 선택자 '${standardSelector}'로 강의를 찾지 못했습니다. 대체 선택자를 시도합니다.`);
-        
-        const alternativeSelector = '.lessonArea';
-        elements = document.querySelectorAll(alternativeSelector);
-        if (elements.length > 0) {
-            console.log(`성공: 대체 선택자 '${alternativeSelector}'로 ${elements.length}개의 강의를 찾았습니다.`);
-        } else {
-            console.error("오류: 어떤 선택자로도 강의 블록(.lessonArea)을 찾을 수 없었습니다.");
+        console.log("Found schedule container:", scheduleContainer);
+
+        const courseElements = scheduleContainer.querySelectorAll('.lessonArea');
+        if (courseElements.length === 0) {
+            console.error("Importer Error: No '.lessonArea' elements found inside the container.");
+            alert("時間割データが見つかりませんでした。「履修授業」タブで実行しているか確認してください。");
+            return null;
         }
-        return elements;
+        console.log(`Found ${courseElements.length} course elements.`);
+
+        const dayMap = { '月': 1, '火': 2, '水': 3, '木': 4, '金': 5, '土': 6, '日': 0 };
+        const courses = [];
+
+        courseElements.forEach((element, index) => {
+            const courseNameElement = element.querySelector('.lessonTitle');
+            const dayPeriodElement = element.querySelector('.period');
+            const locationElement = element.querySelector('.lessonDetail > div:not(:has(a))');
+
+            if (!courseNameElement || !dayPeriodElement) {
+                console.warn(`Skipping element at index ${index} due to missing course name or period.`);
+                return;
+            }
+
+            const courseName = courseNameElement.innerText.trim();
+            const dayPeriodText = dayPeriodElement.innerText.trim();
+            const location = locationElement ? locationElement.innerText.trim() : '';
+            
+            const match = dayPeriodText.match(/([月火水木金土日])\s*(\d)/);
+            if (!match) {
+                console.warn(`Skipping course "${courseName}" due to invalid day/period format: "${dayPeriodText}"`);
+                return;
+            }
+
+            const dayChar = match[1];
+            const period = parseInt(match[2], 10);
+            const dayOfWeek = dayMap[dayChar];
+
+            if (dayOfWeek !== undefined) {
+                courses.push({ courseName, dayOfWeek, period, location });
+            } else {
+                 console.warn(`Skipping course "${courseName}" due to unknown day character: "${dayChar}"`);
+            }
+        });
+
+        console.log("Final parsed courses:", courses);
+        return courses;
     }
-    
-    const courseElements = getCourseElements();
 
-    if (courseElements.length === 0) {
-        alert("시간표 데이터를 찾을 수 없습니다. HUS-UNIPA의 '履修授業' 탭에서 실행했는지 확인해주세요.");
-        return;
-    }
-
-    const courses = [];
-    courseElements.forEach((element, index) => {
-        const courseNameElement = element.querySelector('.lessonTitle');
-        const courseName = courseNameElement?.innerText.trim();
-
-        if (!courseName) {
-            console.warn(`${index + 1}번째 항목은 강의명이 없어 건너뜁니다.`);
+    function showConfirmation(courses) {
+        if (!courses || courses.length === 0) {
+            alert("インポートできる授業がありませんでした。");
             return;
         }
 
-        const dayPeriodElement = element.querySelector('.period');
-        const dayPeriodText = dayPeriodElement?.innerText.trim() || '';
-        const [dayStr, periodStr] = dayPeriodText.split(/\s+/);
-        
-        const dayOfWeek = dayMap[dayStr] ?? -1;
-        const period = parseInt(periodStr, 10) || -1;
-        
-        const locationElement = element.querySelector('.lessonDetail div');
-        const location = locationElement?.innerText.trim() || '';
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.backgroundColor = 'rgba(0,0,0,0.6)';
+        overlay.style.zIndex = '9998';
+        document.body.appendChild(overlay);
 
-        if (dayOfWeek !== -1 && period !== -1) {
-            courses.push({
-                courseName,
-                dayOfWeek,
-                period,
-                location
-            });
+        const modal = document.createElement('div');
+        modal.style.position = 'fixed';
+        modal.style.top = '50%';
+        modal.style.left = '50%';
+        modal.style.transform = 'translate(-50%, -50%)';
+        modal.style.backgroundColor = '#fff';
+        modal.style.padding = '25px';
+        modal.style.borderRadius = '8px';
+        modal.style.boxShadow = '0 5px 15px rgba(0,0,0,0.3)';
+        modal.style.zIndex = '9999';
+        modal.style.fontFamily = '"Helvetica Neue", Arial, sans-serif';
+        modal.style.textAlign = 'center';
+        
+        modal.innerHTML = `
+            <h3 style="margin-top:0; margin-bottom:15px; font-size:18px; color:#333;">時間割のインポート</h3>
+            <p style="margin-bottom:20px; font-size:14px; color:#555;">${courses.length}件の授業情報をHUS-schedulerにインポートしますか？</p>
+            <button id="hus-import-confirm" style="background-color:#007bff; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; margin-right:10px;">はい</button>
+            <button id="hus-import-cancel" style="background-color:#6c757d; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer;">いいえ</button>
+        `;
+
+        document.body.appendChild(modal);
+
+        document.getElementById('hus-import-confirm').onclick = function() {
+            const jsonString = JSON.stringify(courses);
+            const encodedData = btoa(encodeURIComponent(jsonString));
+            const targetUrl = `https://hus-scheduler-project.vercel.app/schedule/manage?data=${encodedData}`;
+            window.open(targetUrl, '_blank');
+            closeModal();
+        };
+
+        document.getElementById('hus-import-cancel').onclick = closeModal;
+        overlay.onclick = closeModal;
+
+        function closeModal() {
+            document.body.removeChild(modal);
+            document.body.removeChild(overlay);
         }
-    });
-
-    if (courses.length === 0) {
-        alert("유효한 강의 정보를 추출하지 못했습니다.");
-        return;
     }
 
-    const jsonString = JSON.stringify(courses);
-    const encodedData = btoa(encodeURIComponent(jsonString));
-    const targetUrl = `https://hus-scheduler-project.vercel.app/schedule/import?data=${encodedData}`;
+    const parsedCourses = parseCourses();
+    showConfirmation(parsedCourses);
 
-    if (confirm(`${courses.length}件の授業情報をHUS-schedulerにインポートしますか？\n(新しいタブで開きます)`)) {
-        window.open(targetUrl, '_blank');
-    }
 })();
