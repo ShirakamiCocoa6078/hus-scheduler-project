@@ -13,6 +13,7 @@ import { WeatherWidget } from "@/components/dashboard/weather-widget";
 import { TransitInformationWidget } from "@/components/dashboard/transit-information-widget";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 // WidgetSkeleton을 DashboardPage 컴포넌트 밖으로 이동시켜 불필요한 재정의를 방지합니다.
