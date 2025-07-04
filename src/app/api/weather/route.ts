@@ -122,7 +122,7 @@ export async function GET() {
       const cacheExpiry = new Date(cachedData.updatedAt.getTime() + CACHE_DURATION_HOURS * 60 * 60 * 1000);
       
       if (now < cacheExpiry) {
-        console.log("[Weather API] 유효한 캐시 데이터를 반환합니다.");
+        console.log("[Weather API] 유효한 캐시 데이터를 반환합니다. 캐시 데이터:", JSON.stringify(cachedData.data, null, 2));
         return NextResponse.json(cachedData.data);
       }
     }
@@ -138,6 +138,8 @@ export async function GET() {
       }
       throw new Error("스크레이핑에 실패했거나 유효한 데이터를 가져오지 못했습니다.");
     }
+
+    console.log('[Weather API] 스크레이핑 완료. 수집된 데이터:', JSON.stringify(newWeatherData, null, 2));
     
     const newWeatherDataAsJson = newWeatherData as any;
 
@@ -147,6 +149,8 @@ export async function GET() {
       update: { data: newWeatherDataAsJson, updatedAt: new Date() },
       create: { locationKey, data: newWeatherDataAsJson },
     });
+    
+    console.log('[Weather API] 데이터베이스 업데이트 완료. 저장된 데이터:', JSON.stringify(updatedWeather.data, null, 2));
 
     return NextResponse.json(updatedWeather.data);
 
