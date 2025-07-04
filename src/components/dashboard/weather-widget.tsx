@@ -4,9 +4,11 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Loader2 as LoaderIcon, AlertTriangle, ArrowUp, ArrowDown, Cloudy, Umbrella } from "lucide-react";
+import { Loader2 as LoaderIcon, AlertTriangle, ArrowUp, ArrowDown, Cloudy, Umbrella, RefreshCw } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 // New interfaces for OpenWeatherMap data
 interface WeatherData {
@@ -46,33 +48,34 @@ export function WeatherWidget() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchWeather = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await fetch('/api/weather');
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: "Server response could not be parsed as JSON." }));
-          throw new Error(errorData.message || `HTTP Error! Status: ${response.status}`);
-        }
-        const data: WeatherData = await response.json();
-        if (!data || !data.current || !data.hourly || !data.daily) {
-          throw new Error("Weather data from server is incomplete or in the wrong format.");
-        }
-        setWeather(data);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "An unknown error occurred";
-        setError(message);
-      } finally {
-        setIsLoading(false);
+  const fetchWeather = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Use no-store to ensure the browser doesn't cache the request for manual refresh
+      const response = await fetch('/api/weather', { cache: 'no-store' });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Server response could not be parsed as JSON." }));
+        throw new Error(errorData.message || `HTTP Error! Status: ${response.status}`);
       }
-    };
-
-    fetchWeather();
+      const data: WeatherData = await response.json();
+      if (!data || !data.current || !data.hourly || !data.daily) {
+        throw new Error("Weather data from server is incomplete or in the wrong format.");
+      }
+      setWeather(data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "An unknown error occurred";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  if (isLoading) {
+  useEffect(() => {
+    fetchWeather();
+  }, [fetchWeather]);
+
+  if (isLoading && !weather) {
     return (
       <Card className="shadow-lg">
         <CardHeader>
@@ -90,10 +93,13 @@ export function WeatherWidget() {
   if (error || !weather) {
     return (
       <Card className="shadow-lg">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-xl font-headline text-primary flex items-center">
             <Cloudy className="mr-3 h-6 w-6" /> 天気
           </CardTitle>
+           <Button variant="ghost" size="icon" onClick={fetchWeather} disabled={isLoading}>
+              <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+          </Button>
         </CardHeader>
         <CardContent className="text-center py-8">
             <div className="mx-auto bg-destructive/10 text-destructive rounded-full h-16 w-16 flex items-center justify-center mb-4">
@@ -115,7 +121,12 @@ export function WeatherWidget() {
         <CardHeader>
             <div className="flex justify-between items-start">
                 <div>
-                    <CardTitle className="text-xl font-headline text-primary">札幌市の天気</CardTitle>
+                    <div className="flex items-center gap-2">
+                        <CardTitle className="text-xl font-headline text-primary">札幌市の天気</CardTitle>
+                        <Button variant="ghost" size="icon" onClick={fetchWeather} disabled={isLoading} className="h-7 w-7">
+                            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+                        </Button>
+                    </div>
                     <CardDescription className="capitalize">{weather.current.weather}</CardDescription>
                 </div>
                 <WeatherIcon iconCode={weather.current.icon} alt={weather.current.weather} size={52} />
