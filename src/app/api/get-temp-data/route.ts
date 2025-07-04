@@ -1,9 +1,7 @@
 
 // src/app/api/get-temp-data/route.ts
 import { NextResponse, type NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
 
 export async function GET() {
   // This is a developer API, so ideally it should have some form of auth check.

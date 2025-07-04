@@ -1,12 +1,11 @@
 // 파일 경로: /app/api/weather/route.ts
 
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import type { Element } from 'cheerio';
 
-const prisma = new PrismaClient();
 const CACHE_DURATION_HOURS = 1;
 
 // --- 데이터 구조 정의 (인터페이스) ---
