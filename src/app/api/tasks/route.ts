@@ -34,7 +34,7 @@ export async function GET() {
       }),
     ]);
 
-    // 2. 남은 과제 및 시험 조회
+    // 2. 남은 과제 및 시험 조회 (연결된 강의명 포함)
     const tasks = await prisma.task.findMany({
       where: { userId: userId },
       include: {
