@@ -1,119 +1,73 @@
 
-javascript:(function() {
-    console.clear();
-    console.log("HUS-scheduler: UNIPA Importer script started.");
+(function() {
+    console.clear(); // 이전 로그를 지우고 새로 시작
+    console.log("HUS-scheduler ブックマークレットのデバッグモードを開始します。");
 
-    function parseCourses() {
-        const scheduleContainer = document.querySelector('div.rishu-koma-list-page-body-sp, div.rishu-koma-list-page-body');
-        if (!scheduleContainer) {
-            console.error("Importer Error: Could not find the main schedule container. The page structure might have changed.");
-            alert("時間割コンテナが見つかりませんでした。ページの構造が変更された可能性があります。「履修授業」タブで実行しているか確認してください。");
-            return null;
-        }
-        console.log("Found schedule container:", scheduleContainer);
+    const dayOfWeekJpToNum = {
+        '月': 1, '火': 2, '水': 3, '木': 4, '金': 5, '土': 6, '日': 0
+    };
 
-        const courseElements = scheduleContainer.querySelectorAll('.lessonArea');
-        if (courseElements.length === 0) {
-            console.error("Importer Error: No '.lessonArea' elements found inside the container.");
-            alert("時間割データが見つかりませんでした。「履修授業」タブで実行しているか確認してください。");
-            return null;
-        }
-        console.log(`Found ${courseElements.length} course elements.`);
-
-        const dayMap = { '月': 1, '火': 2, '水': 3, '木': 4, '金': 5, '土': 6, '日': 0 };
-        const courses = [];
-
-        courseElements.forEach((element, index) => {
-            const courseNameElement = element.querySelector('.lessonTitle');
-            const dayPeriodElement = element.querySelector('.period');
-            const locationElement = element.querySelector('.lessonDetail > div:not(:has(a))');
-
-            if (!courseNameElement || !dayPeriodElement) {
-                console.warn(`Skipping element at index ${index} due to missing course name or period.`);
-                return;
-            }
-
-            const courseName = courseNameElement.innerText.trim();
-            const dayPeriodText = dayPeriodElement.innerText.trim();
-            const location = locationElement ? locationElement.innerText.trim() : '';
-            
-            const match = dayPeriodText.match(/([月火水木金土日])\s*(\d)/);
-            if (!match) {
-                console.warn(`Skipping course "${courseName}" due to invalid day/period format: "${dayPeriodText}"`);
-                return;
-            }
-
-            const dayChar = match[1];
-            const period = parseInt(match[2], 10);
-            const dayOfWeek = dayMap[dayChar];
-
-            if (dayOfWeek !== undefined) {
-                courses.push({ courseName, dayOfWeek, period, location });
-            } else {
-                 console.warn(`Skipping course "${courseName}" due to unknown day character: "${dayChar}"`);
-            }
-        });
-
-        console.log("Final parsed courses:", courses);
-        return courses;
+    // 1. 전체 시간표를 감싸고 있는 컨테이너를 찾습니다.
+    const scheduleContainer = document.querySelector('#funcForm\\:j_idt387\\:j_idt3700');
+    if (!scheduleContainer) {
+        console.error("エラー: 時間割コンテナ(#funcForm\\:j_idt387\\:j_idt3700)が見つかりません。");
+        alert("時間割コンテナが見つかりませんでした。UNIPAページの構造が変更された可能性があります。");
+        return;
     }
+    console.log("成功: 時間割コンテナを発見しました。", scheduleContainer);
 
-    function showConfirmation(courses) {
-        if (!courses || courses.length === 0) {
-            alert("インポートできる授業がありませんでした。");
-            return;
-        }
-
-        const overlay = document.createElement('div');
-        overlay.style.position = 'fixed';
-        overlay.style.top = '0';
-        overlay.style.left = '0';
-        overlay.style.width = '100%';
-        overlay.style.height = '100%';
-        overlay.style.backgroundColor = 'rgba(0,0,0,0.6)';
-        overlay.style.zIndex = '9998';
-        document.body.appendChild(overlay);
-
-        const modal = document.createElement('div');
-        modal.style.position = 'fixed';
-        modal.style.top = '50%';
-        modal.style.left = '50%';
-        modal.style.transform = 'translate(-50%, -50%)';
-        modal.style.backgroundColor = '#fff';
-        modal.style.padding = '25px';
-        modal.style.borderRadius = '8px';
-        modal.style.boxShadow = '0 5px 15px rgba(0,0,0,0.3)';
-        modal.style.zIndex = '9999';
-        modal.style.fontFamily = '"Helvetica Neue", Arial, sans-serif';
-        modal.style.textAlign = 'center';
-        
-        modal.innerHTML = `
-            <h3 style="margin-top:0; margin-bottom:15px; font-size:18px; color:#333;">時間割のインポート</h3>
-            <p style="margin-bottom:20px; font-size:14px; color:#555;">${courses.length}件の授業情報をHUS-schedulerにインポートしますか？</p>
-            <button id="hus-import-confirm" style="background-color:#007bff; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; margin-right:10px;">はい</button>
-            <button id="hus-import-cancel" style="background-color:#6c757d; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer;">いいえ</button>
-        `;
-
-        document.body.appendChild(modal);
-
-        document.getElementById('hus-import-confirm').onclick = function() {
-            const jsonString = JSON.stringify(courses);
-            const encodedData = btoa(encodeURIComponent(jsonString));
-            const targetUrl = `https://hus-scheduler-project.vercel.app/schedule/manage?data=${encodedData}`;
-            window.open(targetUrl, '_blank');
-            closeModal();
-        };
-
-        document.getElementById('hus-import-cancel').onclick = closeModal;
-        overlay.onclick = closeModal;
-
-        function closeModal() {
-            document.body.removeChild(modal);
-            document.body.removeChild(overlay);
-        }
+    // 2. 개별 강의 블록들을 모두 선택합니다.
+    const courseElements = scheduleContainer.querySelectorAll('.ui-datalist-item .lessonArea');
+    if (courseElements.length === 0) {
+        console.error("エラー: 授業ブロック(.lessonArea)が見つかりませんでした。");
+        alert("抽出できる授業データがありません。「履修授業」タブで実行していることを確認してください。");
+        return;
     }
+    console.log(`成功: ${courseElements.length}件の授業ブロックが見つかりました。`);
 
-    const parsedCourses = parseCourses();
-    showConfirmation(parsedCourses);
+    const courses = [];
+    // 3. 각 강의 블록을 순회하며 정보를 추출합니다.
+    courseElements.forEach((element, index) => {
+        console.log(`\n--- ${index + 1}件目の授業を処理中 ---`);
 
+        const dayPeriodElement = element.querySelector('.period');
+        const courseNameElement = element.querySelector('.lessonTitle');
+        const locationElement = element.querySelector('.lessonDetail div');
+
+        // 각 요소의 존재 여부와 텍스트 내용을 로그로 출력
+        console.log("曜日/時限 要素:", dayPeriodElement ? dayPeriodElement.innerText.trim() : "見つかりません");
+        console.log("授業名 要素:", courseNameElement ? courseNameElement.innerText.trim() : "見つかりません");
+        console.log("教室 要素:", locationElement ? locationElement.innerText.trim() : "見つかりません");
+
+        if (courseNameElement?.innerText.trim()) {
+            const dayPeriodText = dayPeriodElement?.innerText.trim() || ' ';
+            const [dayStr, periodStr] = dayPeriodText.split(' ');
+
+            const dayOfWeek = dayOfWeekJpToNum[dayStr] ?? -1;
+            const period = parseInt(periodStr, 10) || 0;
+
+            courses.push({
+                courseName: courseNameElement.innerText.trim(),
+                dayOfWeek: dayOfWeek,
+                period: period,
+                location: locationElement?.innerText.trim() || ''
+            });
+        } else {
+             console.warn(`${index + 1}番目のブロックで授業名が見つからなかったため、スキップします。`);
+        }
+    });
+
+    // 4. 최종적으로 파싱된 데이터를 콘솔에 테이블 형태로 출력
+    console.log("\n--- 最終パース結果 ---");
+    console.table(courses);
+
+    // 5. 클립보드 복사 및 알림
+    const jsonString = JSON.stringify(courses, null, 2);
+    const encodedData = btoa(encodeURIComponent(jsonString));
+    const targetUrl = `${window.location.origin}/schedule/manage?data=${encodedData}&tab=import`;
+    
+    if (confirm(`${courses.length}件の授業情報をインポートしますか？`)) {
+        window.open(targetUrl, '_blank');
+        alert("新しいタブで時間割の確認ページを開きました。内容を確認して保存してください。");
+    }
 })();
