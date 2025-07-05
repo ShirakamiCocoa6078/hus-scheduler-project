@@ -33,7 +33,7 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    const { isCompleted, title, dueDate, courseId, location, period } = body;
+    const { isCompleted, title, dueDate, courseId, location, period, type } = body;
     
     // isCompleted가 undefined가 아닌 경우, 즉 완료/미완료 상태 변경 요청일 때
     // 다른 정보는 업데이트 하지 않음
@@ -50,10 +50,11 @@ export async function PATCH(
       where: { id: taskId },
       data: {
         title: title,
+        type: type,
         dueDate: dueDate ? new Date(dueDate) : undefined,
         courseId: courseId,
         location: location,
-        period: period ? parseInt(period, 10) : undefined,
+        period: period ? parseInt(period, 10) : null,
       },
     });
 

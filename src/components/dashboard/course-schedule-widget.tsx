@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, BookOpen, Clock, MapPin, Loader2, AlertTriangle, PlusCircle, Pencil } from "lucide-react";
+import { CalendarDays, BookOpen, Clock, MapPin, Loader2, AlertTriangle, PlusCircle, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { format, addDays } from "date-fns";
+import { ja } from "date-fns/locale";
+
 
 interface Course {
   id: string;
@@ -30,21 +33,19 @@ export function CourseScheduleWidget() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [displayDate, setDisplayDate] = useState(new Date());
 
   useEffect(() => {
     const fetchCourses = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        // 1. 클라이언트의 현재 날짜를 YYYY-MM-DD 형식으로 생성
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-        const todayDateString = `${year}-${month}-${day}`;
+        const year = displayDate.getFullYear();
+        const month = String(displayDate.getMonth() + 1).padStart(2, '0');
+        const day = String(displayDate.getDate()).padStart(2, '0');
+        const dateString = `${year}-${month}-${day}`;
 
-        // 2. API 요청 시 date 파라미터를 추가하여 전송
-        const response = await fetch(`/api/courses/today?date=${todayDateString}`);
+        const response = await fetch(`/api/courses/today?date=${dateString}`);
 
         if (!response.ok) {
           const errorData = await response.json();
@@ -60,7 +61,11 @@ export function CourseScheduleWidget() {
     };
 
     fetchCourses();
-  }, []);
+  }, [displayDate]);
+
+  const handleDateChange = (amount: number) => {
+    setDisplayDate(prevDate => addDays(prevDate, amount));
+  };
 
   const renderContent = () => {
     if (isLoading) {
@@ -87,12 +92,12 @@ export function CourseScheduleWidget() {
         <div className="text-center py-8">
           <CalendarDays className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
           <p className="text-muted-foreground font-medium text-lg">
-            本日は講義の予定がありません。
+            この日は講義の予定がありません。
           </p>
           <Button asChild className="mt-4">
             <Link href="/schedule/manage">
               <PlusCircle className="mr-2 h-4 w-4" />
-              時間割を追加する
+              時間割を編集する
             </Link>
           </Button>
         </div>
@@ -100,6 +105,7 @@ export function CourseScheduleWidget() {
     }
     
     const now = new Date();
+    const isToday = format(displayDate, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd');
     const currentTimeValue = now.getHours() * 100 + now.getMinutes();
 
     return (
@@ -107,7 +113,7 @@ export function CourseScheduleWidget() {
         {courses.map((course) => {
           const startTimeValue = parseInt(course.startTime.replace(':', ''), 10);
           const endTimeValue = parseInt(course.endTime.replace(':', ''), 10);
-          const isCurrent = currentTimeValue >= startTimeValue && currentTimeValue < endTimeValue;
+          const isCurrent = isToday && currentTimeValue >= startTimeValue && currentTimeValue < endTimeValue;
 
           return (
             <div 
@@ -144,7 +150,7 @@ export function CourseScheduleWidget() {
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-xl font-headline text-primary flex items-center">
           <BookOpen className="mr-3 h-6 w-6" />
-          本日のスケジュール
+          講義スケジュール
         </CardTitle>
         <Button variant="ghost" size="icon" asChild>
           <Link href="/schedule/manage" aria-label="時間割を編集">
@@ -153,6 +159,17 @@ export function CourseScheduleWidget() {
         </Button>
       </CardHeader>
       <CardContent>
+        <div className="flex items-center justify-center my-2">
+          <Button variant="ghost" size="icon" onClick={() => handleDateChange(-1)}>
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <span className="text-lg font-semibold w-48 text-center" style={{fontFeatureSettings: '"tnum"'}}>
+            {format(displayDate, "yyyy/MM/dd (E)", { locale: ja })}
+          </span>
+          <Button variant="ghost" size="icon" onClick={() => handleDateChange(1)}>
+            <ChevronRight className="h-5 w-5" />
+          </Button>
+        </div>
         {renderContent()}
       </CardContent>
     </Card>

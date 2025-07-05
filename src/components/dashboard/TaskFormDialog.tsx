@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,13 +37,13 @@ interface TaskFormDialogProps {
 export function TaskFormDialog({ trigger, courses = [], taskToEdit, onTaskUpdate }: TaskFormDialogProps) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [type, setType] = useState<'ASSIGNMENT' | 'EXAM'>(taskToEdit?.type || 'ASSIGNMENT');
-  const [courseId, setCourseId] = useState(taskToEdit?.courseId || '');
-  const [title, setTitle] = useState(taskToEdit?.title || '');
-  const [date, setDate] = useState<Date | undefined>(taskToEdit ? new Date(taskToEdit.dueDate) : undefined);
-  const [time, setTime] = useState(taskToEdit ? format(new Date(taskToEdit.dueDate), 'HH:mm') : '23:59');
-  const [location, setLocation] = useState(taskToEdit?.location || '');
-  const [period, setPeriod] = useState(taskToEdit?.period?.toString() || '');
+  const [type, setType] = useState<'ASSIGNMENT' | 'EXAM'>('ASSIGNMENT');
+  const [courseId, setCourseId] = useState('');
+  const [title, setTitle] = useState('');
+  const [date, setDate] = useState<Date | undefined>(undefined);
+  const [time, setTime] = useState('23:59');
+  const [location, setLocation] = useState('');
+  const [period, setPeriod] = useState('');
   const { toast } = useToast();
   
   const isEditMode = !!taskToEdit;
@@ -52,12 +53,30 @@ export function TaskFormDialog({ trigger, courses = [], taskToEdit, onTaskUpdate
       setType(taskToEdit.type);
       setCourseId(taskToEdit.courseId);
       setTitle(taskToEdit.title);
-      setDate(new Date(taskToEdit.dueDate));
-      setTime(format(new Date(taskToEdit.dueDate), 'HH:mm'));
+      const dueDate = new Date(taskToEdit.dueDate);
+      setDate(dueDate);
+      setTime(format(dueDate, 'HH:mm'));
       setLocation(taskToEdit.location || '');
       setPeriod(taskToEdit.period?.toString() || '');
     }
-  }, [taskToEdit]);
+  }, [taskToEdit, open]); // open을 의존성에 추가하여 다이얼로그가 열릴 때마다 상태 초기화
+
+  const resetForm = () => {
+    setType('ASSIGNMENT');
+    setCourseId('');
+    setTitle('');
+    setDate(undefined);
+    setTime('23:59');
+    setLocation('');
+    setPeriod('');
+  };
+
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) {
+      resetForm();
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,7 +120,7 @@ export function TaskFormDialog({ trigger, courses = [], taskToEdit, onTaskUpdate
         description: `タスクが${isEditMode ? '更新' : '作成'}されました。`,
       });
       onTaskUpdate();
-      setOpen(false);
+      handleOpenChange(false);
     } catch (error) {
       toast({ title: "エラー", description: (error as Error).message, variant: "destructive" });
     } finally {
@@ -110,7 +129,7 @@ export function TaskFormDialog({ trigger, courses = [], taskToEdit, onTaskUpdate
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <form onSubmit={handleSubmit}>
@@ -124,55 +143,56 @@ export function TaskFormDialog({ trigger, courses = [], taskToEdit, onTaskUpdate
               <div><RadioGroupItem value="EXAM" id="r2" className="peer sr-only" /><Label htmlFor="r2" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">試験</Label></div>
             </RadioGroup>
             
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="course" className="text-right">科目</Label>
+            <div className="space-y-2">
+              <Label htmlFor="course">科目</Label>
               <Select value={courseId} onValueChange={setCourseId} required>
-                <SelectTrigger id="course" className="col-span-3"><SelectValue placeholder="科目を選択" /></SelectTrigger>
+                <SelectTrigger id="course"><SelectValue placeholder="科目を選択" /></SelectTrigger>
                 <SelectContent>
-                  {courses.map(course => <SelectItem key={course.id} value={course.id}>{course.courseName}</SelectItem>)}
+                  {courses?.map(course => <SelectItem key={course.id} value={course.id}>{course.courseName}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="title" className="text-right">{type === 'ASSIGNMENT' ? '課題名' : '試験名'}</Label>
-              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} className="col-span-3" required />
+            <div className="space-y-2">
+              <Label htmlFor="title">{type === 'ASSIGNMENT' ? '課題名' : '試験名'}</Label>
+              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} required />
             </div>
 
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="date" className="text-right">日付</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant={"outline"} className={cn("col-span-3 justify-start text-left font-normal", !date && "text-muted-foreground")}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {date ? format(date, "PPP", { locale: ja }) : <span>日付を選択</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent>
-              </Popover>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="date">日付</Label>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                        <Button id="date" variant={"outline"} className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {date ? format(date, "PPP", { locale: ja }) : <span>日付を選択</span>}
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent>
+                    </Popover>
+                </div>
+                {type === 'ASSIGNMENT' ? (
+                    <div className="space-y-2">
+                        <Label htmlFor="time">締め切り</Label>
+                        <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        <Label htmlFor="period">時限</Label>
+                        <Input id="period" type="number" value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="例: 3" />
+                    </div>
+                )}
             </div>
-
-            {type === 'ASSIGNMENT' && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="time" className="text-right">締め切り</Label>
-                <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className="col-span-3" required />
-              </div>
-            )}
-
+            
             {type === 'EXAM' && (
-              <>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="period" className="text-right">時限</Label>
-                  <Input id="period" type="number" value={period} onChange={(e) => setPeriod(e.target.value)} className="col-span-3" placeholder="例: 3" />
+                <div className="space-y-2">
+                  <Label htmlFor="location">場所</Label>
+                  <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="例: G201講義室" />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="location" className="text-right">場所</Label>
-                  <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} className="col-span-3" placeholder="例: G201講義室" />
-                </div>
-              </>
             )}
           </div>
           <DialogFooter>
+            <DialogClose asChild><Button type="button" variant="outline">キャンセル</Button></DialogClose>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isEditMode ? '更新' : '保存'}
