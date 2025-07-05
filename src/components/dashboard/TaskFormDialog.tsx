@@ -48,19 +48,6 @@ export function TaskFormDialog({ trigger, courses = [], taskToEdit, onTaskUpdate
   
   const isEditMode = !!taskToEdit;
 
-  useEffect(() => {
-    if (taskToEdit) {
-      setType(taskToEdit.type);
-      setCourseId(taskToEdit.courseId);
-      setTitle(taskToEdit.title);
-      const dueDate = new Date(taskToEdit.dueDate);
-      setDate(dueDate);
-      setTime(format(dueDate, 'HH:mm'));
-      setLocation(taskToEdit.location || '');
-      setPeriod(taskToEdit.period?.toString() || '');
-    }
-  }, [taskToEdit, open]); // open을 의존성에 추가하여 다이얼로그가 열릴 때마다 상태 초기화
-
   const resetForm = () => {
     setType('ASSIGNMENT');
     setCourseId('');
@@ -71,11 +58,31 @@ export function TaskFormDialog({ trigger, courses = [], taskToEdit, onTaskUpdate
     setPeriod('');
   };
 
+  useEffect(() => {
+    // 다이얼로그가 열릴 때 상태를 설정합니다.
+    if (open) {
+      if (taskToEdit) {
+        // 수정 모드: 기존 데이터로 상태를 채웁니다.
+        setType(taskToEdit.type);
+        setCourseId(taskToEdit.courseId);
+        setTitle(taskToEdit.title);
+        const dueDate = new Date(taskToEdit.dueDate);
+        setDate(dueDate);
+        setTime(format(dueDate, 'HH:mm'));
+        setLocation(taskToEdit.location || '');
+        setPeriod(taskToEdit.period?.toString() || '');
+      } else {
+        // 추가 모드: 폼을 초기화합니다.
+        resetForm();
+      }
+    }
+  }, [open, taskToEdit]);
+
+
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
-    if (!isOpen) {
-      resetForm();
-    }
+    // 다이얼로그가 닫힐 때 폼을 리셋할 필요는 없습니다.
+    // 열릴 때 useEffect에서 처리하기 때문입니다.
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ListChecks, PlusCircle, AlertTriangle, Loader2, FileText, BookCheck, Pencil, Trash2 } from "lucide-react";
 import { TaskFormDialog } from "./TaskFormDialog";
-import { differenceInHours, isPast, format } from "date-fns";
+import { differenceInHours, isPast, format, differenceInMinutes } from "date-fns";
 import { ja } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -30,9 +30,13 @@ export interface Task {
 const TaskItem = ({ task, onUpdate, isSelected, onToggleSelect }: { task: Task; onUpdate: () => void; isSelected: boolean; onToggleSelect: (taskId: string) => void; }) => {
   const { toast } = useToast();
   const [opacity, setOpacity] = useState(0.1);
+  const now = new Date();
   const dueDate = new Date(task.dueDate);
-  const hoursUntilDue = differenceInHours(dueDate, new Date());
-  const isOverdue = isPast(dueDate);
+
+  const isExamFinished = task.type === 'EXAM' && differenceInMinutes(now, dueDate) > 30;
+
+  const hoursUntilDue = differenceInHours(dueDate, now);
+  const isOverdue = isPast(dueDate) && !isExamFinished; // 시험이 끝난 경우는 Overdue로 치지 않음
   const isUrgent = hoursUntilDue <= 6 && !isPast(dueDate);
 
   useEffect(() => {
@@ -70,10 +74,10 @@ const TaskItem = ({ task, onUpdate, isSelected, onToggleSelect }: { task: Task; 
       <div className="flex-1 space-y-1">
         <label htmlFor={`task-sel-${task.id}`} className="font-medium text-foreground cursor-pointer flex items-center">
           <FileText className="mr-2 h-4 w-4 text-primary shrink-0" />
-          {task.title}
+          {isExamFinished ? "お疲れ様でした！" : task.title}
         </label>
         <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
-          <span>{task.course.courseName}</span>
+          <span>{task.course.courseName}{isExamFinished ? ` (${task.title})` : ''}</span>
           <span>|</span>
           <span>{format(dueDate, "M/d(E) HH:mm", { locale: ja })}</span>
           {isOverdue && <span className="text-destructive font-bold ml-2">期限切れ</span>}
