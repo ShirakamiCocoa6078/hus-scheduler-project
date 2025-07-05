@@ -59,7 +59,7 @@ export function TaskFormDialog({ trigger, courses = [], taskToEdit, onTaskUpdate
   };
 
   useEffect(() => {
-    // 다이얼로그가 열릴 때 상태를 설정합니다.
+    // 다이얼로그가 열릴 때마다 상태를 설정합니다.
     if (open) {
       if (taskToEdit) {
         // 수정 모드: 기존 데이터로 상태를 채웁니다.
@@ -81,8 +81,6 @@ export function TaskFormDialog({ trigger, courses = [], taskToEdit, onTaskUpdate
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
-    // 다이얼로그가 닫힐 때 폼을 리셋할 필요는 없습니다.
-    // 열릴 때 useEffect에서 처리하기 때문입니다.
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -27,16 +27,16 @@ export interface Task {
   period?: number | null;
 }
 
-const TaskItem = ({ task, onUpdate, isSelected, onToggleSelect }: { task: Task; onUpdate: () => void; isSelected: boolean; onToggleSelect: (taskId: string) => void; }) => {
+const TaskItem = ({ task, onUpdate, isSelected, onToggleSelect, allCourses }: { task: Task; onUpdate: () => void; isSelected: boolean; onToggleSelect: (taskId: string) => void; allCourses: Course[] }) => {
   const { toast } = useToast();
   const [opacity, setOpacity] = useState(0.1);
   const now = new Date();
   const dueDate = new Date(task.dueDate);
 
-  const isExamFinished = task.type === 'EXAM' && differenceInMinutes(now, dueDate) > 30;
+  const isExamFinished = task.type === 'EXAM' && differenceInMinutes(now, dueDate) > 110; // 90분 수업 + 20분 여유
 
   const hoursUntilDue = differenceInHours(dueDate, now);
-  const isOverdue = isPast(dueDate) && !isExamFinished; // 시험이 끝난 경우는 Overdue로 치지 않음
+  const isOverdue = isPast(dueDate) && !isExamFinished && task.type === 'ASSIGNMENT';
   const isUrgent = hoursUntilDue <= 6 && !isPast(dueDate);
 
   useEffect(() => {
@@ -84,11 +84,14 @@ const TaskItem = ({ task, onUpdate, isSelected, onToggleSelect }: { task: Task; 
         </div>
       </div>
       <div className="flex items-center gap-1">
-        <TaskFormDialog courses={[]} trigger={<Button variant="ghost" size="icon"><Pencil className="h-4 w-4" /></Button>} onTaskUpdate={onUpdate} taskToEdit={task} />
+        <TaskFormDialog courses={allCourses} trigger={<Button variant="ghost" size="icon"><Pencil className="h-4 w-4" /></Button>} onTaskUpdate={onUpdate} taskToEdit={task} />
         <AlertDialog>
           <AlertDialogTrigger asChild><Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button></AlertDialogTrigger>
           <AlertDialogContent>
-            <AlertDialogHeader><AlertDialogTitle>本当に削除しますか？</AlertDialogTitle><AlertDialogDescription>この操作は元に戻せません。</AlertDialogDescription></AlertDialogHeader>
+            <AlertDialogHeader>
+                <AlertDialogTitle>本当に削除しますか？</AlertDialogTitle>
+                <AlertDialogDescription>この操作は元に戻せません。本当にこのタスクを削除しますか？</AlertDialogDescription>
+            </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>キャンセル</AlertDialogCancel>
               <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">削除</AlertDialogAction>
@@ -163,7 +166,7 @@ export function TaskManagementWidget() {
     if (isLoading) return <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
     if (error) return <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>エラー</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>;
     if (tasks.length === 0) return <div className="text-center py-8"><ListChecks className="mx-auto h-12 w-12 text-muted-foreground mb-4" /><p className="text-muted-foreground font-medium text-lg">今後のタスクはありません。</p><p className="text-sm text-muted-foreground">新しいタスクを追加しましょう！</p></div>;
-    return <div className="space-y-3 max-h-[26rem] overflow-y-auto pr-2">{tasks.map((task) => <TaskItem key={task.id} task={task} onUpdate={fetchData} isSelected={selectedTasks.has(task.id)} onToggleSelect={handleToggleSelect} />)}</div>;
+    return <div className="space-y-3 max-h-[26rem] overflow-y-auto pr-2">{tasks.map((task) => <TaskItem key={task.id} task={task} onUpdate={fetchData} isSelected={selectedTasks.has(task.id)} onToggleSelect={handleToggleSelect} allCourses={courses} />)}</div>;
   };
 
   return (
@@ -182,7 +185,10 @@ export function TaskManagementWidget() {
                          </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
-                        <AlertDialogHeader><AlertDialogTitle>確認</AlertDialogTitle><AlertDialogDescription>{`選択した${selectedTasks.size}個の課題を完了処理しますか？`}</AlertDialogDescription></AlertDialogHeader>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>完了の確認</AlertDialogTitle>
+                            <AlertDialogDescription>{`選択した${selectedTasks.size}個の課題を完了処理しますか？完了した課題は一覧から削除されます。`}</AlertDialogDescription>
+                        </AlertDialogHeader>
                         <AlertDialogFooter>
                             <AlertDialogCancel>キャンセル</AlertDialogCancel>
                             <AlertDialogAction onClick={handleBatchComplete} className="bg-green-600 hover:bg-green-700">はい、完了します</AlertDialogAction>

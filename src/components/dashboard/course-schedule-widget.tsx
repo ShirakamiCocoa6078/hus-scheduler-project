@@ -153,7 +153,7 @@ export function CourseScheduleWidget() {
           講義スケジュール
         </CardTitle>
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/schedule/manage" aria-label="時間割を編集">
+          <Link href="/schedule/manage" aria-label="時間割を編集する">
             <Pencil className="h-5 w-5 text-muted-foreground hover:text-foreground" />
           </Link>
         </Button>
