@@ -2,6 +2,9 @@
 'use client';
 
 import { useState, useEffect, type ReactNode } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,8 +16,8 @@ import {
   DialogTrigger,
   DialogClose
 } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -27,6 +30,37 @@ import { useToast } from "@/hooks/use-toast";
 import type { Task } from './task-management-widget';
 import type { Course } from '@/types/next-auth';
 
+// Zod schema for validation
+const taskFormSchema = z.object({
+    id: z.string().optional(),
+    type: z.enum(['ASSIGNMENT', 'EXAM'], { required_error: "タイプを選択してください。" }),
+    title: z.string().min(1, { message: "タイトルは必須です。" }),
+    courseId: z.string().min(1, { message: "科目は必須です。" }),
+    dueDate: z.date({ required_error: "日付は必須です。" }),
+    dueTime: z.string().optional(),
+    location: z.string().optional(),
+    period: z.coerce.number().optional(),
+}).refine(data => {
+    if (data.type === 'ASSIGNMENT') {
+        return !!data.dueTime && /^([01]\d|2[0-3]):([0-5]\d)$/.test(data.dueTime);
+    }
+    return true;
+}, {
+    message: "締め切り時間は必須です。",
+    path: ["dueTime"],
+}).refine(data => {
+    if (data.type === 'EXAM') {
+        return !!data.period;
+    }
+    return true;
+}, {
+    message: "時限は必須です。",
+    path: ["period"],
+});
+
+
+type TaskFormValues = z.infer<typeof taskFormSchema>;
+
 interface TaskFormDialogProps {
   trigger: ReactNode;
   courses?: Course[];
@@ -36,76 +70,85 @@ interface TaskFormDialogProps {
 
 export function TaskFormDialog({ trigger, courses = [], taskToEdit, onTaskUpdate }: TaskFormDialogProps) {
   const [open, setOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [type, setType] = useState<'ASSIGNMENT' | 'EXAM'>('ASSIGNMENT');
-  const [courseId, setCourseId] = useState('');
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState<Date | undefined>(undefined);
-  const [time, setTime] = useState('23:59');
-  const [location, setLocation] = useState('');
-  const [period, setPeriod] = useState('');
   const { toast } = useToast();
   
   const isEditMode = !!taskToEdit;
 
-  const resetForm = () => {
-    setType('ASSIGNMENT');
-    setCourseId('');
-    setTitle('');
-    setDate(undefined);
-    setTime('23:59');
-    setLocation('');
-    setPeriod('');
-  };
+  const form = useForm<TaskFormValues>({
+    resolver: zodResolver(taskFormSchema),
+    defaultValues: {
+      type: 'ASSIGNMENT',
+      title: '',
+      courseId: '',
+      dueTime: '23:59',
+      location: '',
+      period: undefined,
+    }
+  });
+  
+  const selectedType = form.watch('type');
 
   useEffect(() => {
-    // 다이얼로그가 열릴 때마다 상태를 설정합니다.
     if (open) {
       if (taskToEdit) {
-        // 수정 모드: 기존 데이터로 상태를 채웁니다.
-        setType(taskToEdit.type);
-        setCourseId(taskToEdit.courseId);
-        setTitle(taskToEdit.title);
-        const dueDate = new Date(taskToEdit.dueDate);
-        setDate(dueDate);
-        setTime(format(dueDate, 'HH:mm'));
-        setLocation(taskToEdit.location || '');
-        setPeriod(taskToEdit.period?.toString() || '');
+        form.reset({
+          id: taskToEdit.id,
+          type: taskToEdit.type,
+          title: taskToEdit.title,
+          courseId: taskToEdit.courseId,
+          dueDate: new Date(taskToEdit.dueDate),
+          dueTime: format(new Date(taskToEdit.dueDate), 'HH:mm'),
+          location: taskToEdit.location || '',
+          period: taskToEdit.period || undefined,
+        });
       } else {
-        // 추가 모드: 폼을 초기화합니다.
-        resetForm();
+        form.reset({
+          type: 'ASSIGNMENT',
+          title: '',
+          courseId: '',
+          dueTime: '23:59',
+          location: '',
+          period: undefined,
+          dueDate: undefined,
+        });
       }
     }
-  }, [open, taskToEdit]);
+  }, [open, taskToEdit, form]);
 
-
-  const handleOpenChange = (isOpen: boolean) => {
-    setOpen(isOpen);
+  const onValidationFail = (errors: any) => {
+    const errorMessages = Object.values(errors).map((e: any) => `- ${e.message}`).join('\n');
+    toast({
+      variant: "destructive",
+      title: "入力項目を確認してください",
+      description: (
+        <pre className="mt-2 w-[340px] rounded-md bg-destructive-foreground/10 p-4">
+          <code className="text-destructive">{errorMessages}</code>
+        </pre>
+      ),
+    });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    if (!date || !courseId || !title) {
-      toast({ title: "エラー", description: "必須項目を入力してください。", variant: "destructive" });
-      setIsSubmitting(false);
-      return;
+  const onSubmit = async (data: TaskFormValues) => {
+    let combinedDueDate: Date;
+    if (data.type === 'ASSIGNMENT' && data.dueTime && data.dueDate) {
+      const [hours, minutes] = data.dueTime.split(':').map(Number);
+      combinedDueDate = setMinutes(setHours(data.dueDate, hours), minutes);
+    } else if (data.dueDate) {
+      combinedDueDate = data.dueDate;
+    } else {
+        // Should not happen due to validation, but as a fallback
+        toast({ title: "エラー", description: "日付が無効です。", variant: "destructive" });
+        return;
     }
 
-    const [hours, minutes] = time.split(':').map(Number);
-    const combinedDueDate = setMinutes(setHours(date, hours), minutes);
-
     const payload = {
-      type,
-      courseId,
-      title,
+      ...data,
       dueDate: combinedDueDate.toISOString(),
-      location: type === 'EXAM' ? location : null,
-      period: type === 'EXAM' && period ? parseInt(period, 10) : null,
+      period: data.type === 'EXAM' ? data.period : null,
+      location: data.type === 'EXAM' ? data.location : null,
     };
     
-    const url = isEditMode ? `/api/tasks/${taskToEdit.id}` : '/api/tasks';
+    const url = isEditMode && payload.id ? `/api/tasks/${payload.id}` : '/api/tasks';
     const method = isEditMode ? 'PATCH' : 'POST';
 
     try {
@@ -125,85 +168,149 @@ export function TaskFormDialog({ trigger, courses = [], taskToEdit, onTaskUpdate
         description: `タスクが${isEditMode ? '更新' : '作成'}されました。`,
       });
       onTaskUpdate();
-      handleOpenChange(false);
+      setOpen(false);
     } catch (error) {
       toast({ title: "エラー", description: (error as Error).message, variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>{isEditMode ? 'タスクの編集' : '新しいタスクの追加'}</DialogTitle>
-            <DialogDescription>詳細を入力してください。</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <RadioGroup value={type} onValueChange={(v) => setType(v as 'ASSIGNMENT' | 'EXAM')} className="grid grid-cols-2 gap-4">
-              <div><RadioGroupItem value="ASSIGNMENT" id="r1" className="peer sr-only" /><Label htmlFor="r1" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">課題</Label></div>
-              <div><RadioGroupItem value="EXAM" id="r2" className="peer sr-only" /><Label htmlFor="r2" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">試験</Label></div>
-            </RadioGroup>
-            
-            <div className="space-y-2">
-              <Label htmlFor="course">科目</Label>
-              <Select value={courseId} onValueChange={setCourseId} required>
-                <SelectTrigger id="course"><SelectValue placeholder="科目を選択" /></SelectTrigger>
-                <SelectContent>
-                  {courses?.map(course => <SelectItem key={course.id} value={course.id}>{course.courseName}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="title">{type === 'ASSIGNMENT' ? '課題名' : '試験名'}</Label>
-              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} required />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="date">日付</Label>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                        <Button id="date" variant={"outline"} className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {date ? format(date, "PPP", { locale: ja }) : <span>日付を選択</span>}
-                        </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent>
-                    </Popover>
-                </div>
-                {type === 'ASSIGNMENT' ? (
-                    <div className="space-y-2">
-                        <Label htmlFor="time">締め切り</Label>
-                        <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
-                    </div>
-                ) : (
-                    <div className="space-y-2">
-                        <Label htmlFor="period">時限</Label>
-                        <Input id="period" type="number" value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="例: 3" />
-                    </div>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit, onValidationFail)}>
+            <DialogHeader>
+              <DialogTitle>{isEditMode ? 'タスクの編集' : '新しいタスクの追加'}</DialogTitle>
+              <DialogDescription>詳細を入力してください。</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-4">
+                        <FormItem><FormControl><RadioGroupItem value="ASSIGNMENT" id="r1" className="peer sr-only" /></FormControl><FormLabel htmlFor="r1" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">課題</FormLabel></FormItem>
+                        <FormItem><FormControl><RadioGroupItem value="EXAM" id="r2" className="peer sr-only" /></FormControl><FormLabel htmlFor="r2" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">試験</FormLabel></FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="courseId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>科目</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                            <SelectTrigger><SelectValue placeholder="科目を選択" /></SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            {courses?.map(course => <SelectItem key={course.id} value={course.id}>{course.courseName}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{selectedType === 'ASSIGNMENT' ? '課題名' : '試験名'}</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="dueDate"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                            <FormLabel>日付</FormLabel>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <FormControl>
+                                        <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                            {field.value ? format(field.value, "PPP", { locale: ja }) : <span>日付を選択</span>}
+                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                  />
+                  {selectedType === 'ASSIGNMENT' ? (
+                      <FormField
+                        control={form.control}
+                        name="dueTime"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>締め切り</FormLabel>
+                                <FormControl><Input type="time" {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                      />
+                  ) : (
+                      <FormField
+                        control={form.control}
+                        name="period"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>試験時限</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
+                              <FormControl>
+                                <SelectTrigger><SelectValue placeholder="時限を選択" /></SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {[1, 2, 3, 4, 5, 6].map(p => (<SelectItem key={p} value={String(p)}>{p}時限</SelectItem>))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                  )}
+              </div>
+              
+              {selectedType === 'EXAM' && (
+                  <FormField
+                    control={form.control}
+                    name="location"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>試験場所</FormLabel>
+                        <FormControl><Input placeholder="例: G201" value={field.value || ''} onChange={field.onChange} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+              )}
             </div>
-            
-            {type === 'EXAM' && (
-                <div className="space-y-2">
-                  <Label htmlFor="location">場所</Label>
-                  <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="例: G201講義室" />
-                </div>
-            )}
-          </div>
-          <DialogFooter>
-            <DialogClose asChild><Button type="button" variant="outline">キャンセル</Button></DialogClose>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isEditMode ? '更新' : '保存'}
-            </Button>
-          </DialogFooter>
-        </form>
+            <DialogFooter>
+              <DialogClose asChild><Button type="button" variant="outline">キャンセル</Button></DialogClose>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isEditMode ? '更新' : '保存'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
