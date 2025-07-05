@@ -121,8 +121,8 @@ export function TaskFormDialog({ trigger, courses = [], taskToEdit, onTaskUpdate
       variant: "destructive",
       title: "入力項目を確認してください",
       description: (
-        <pre className="mt-2 w-[340px] rounded-md bg-destructive-foreground/10 p-4">
-          <code className="text-destructive">{errorMessages}</code>
+        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
+          <code className="text-white">{errorMessages}</code>
         </pre>
       ),
     });
