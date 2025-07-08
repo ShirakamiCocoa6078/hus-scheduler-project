@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { Course } from "@/types/next-auth";
+import Link from 'next/link';
 
 export interface Task {
   id: string;
@@ -173,9 +174,12 @@ export function TaskManagementWidget() {
     <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 md:col-span-2 xl:col-span-1">
       <CardHeader>
         <div className="flex items-center justify-between">
-            <CardTitle className="text-xl font-headline text-primary flex items-center">
-                <ListChecks className="mr-3 h-6 w-6" />
-                今後のタスク
+            <CardTitle className="text-xl font-headline text-primary flex items-center gap-3">
+              <ListChecks className="h-7 w-7" />
+              <div className="flex flex-col">
+                <span className="leading-tight">今後の</span>
+                <span className="leading-tight">タスク</span>
+              </div>
             </CardTitle>
             <div className="flex items-center gap-2">
                  <AlertDialog>
@@ -195,6 +199,12 @@ export function TaskManagementWidget() {
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
+                <Button size="sm" variant="outline" asChild>
+                    <Link href="/settings/moodle-sync">
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        自動追加
+                    </Link>
+                </Button>
                 <TaskFormDialog trigger={<Button size="sm"><PlusCircle className="mr-2 h-4 w-4" />追加</Button>} courses={courses} onTaskUpdate={fetchData} />
             </div>
         </div>

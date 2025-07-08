@@ -48,7 +48,7 @@ export function WeatherWidget() {
         const response = await fetch('/api/weather');
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ message: "서버 응답을 JSON으로 파싱할 수 없습니다." }));
-          throw new Error(errorData.message || `HTTP 에러! Status: ${response.status}`);
+          throw new Error(errorData.message || `HTTP エラー! Status: ${response.status}`);
         }
         const data: WeatherData = await response.json();
         if (!data || !Array.isArray(data.today) || data.today.length === 0 || !Array.isArray(data.weekly) || data.weekly.length === 0) {
@@ -146,7 +146,7 @@ export function WeatherWidget() {
               {weather.weekly.map((day, index) => (
                 <div key={index} className="flex items-center justify-between text-sm p-1 rounded-md">
                   <span className="font-medium w-2/5">{day.date}</span>
-                  {day.icon_url && <img src={day.icon_url} alt={day.weather} className="w-6 h-6 mx-2" />}
+                  {day.icon_url && <img src={day.icon_url} alt={day.weather} className="w-6 h-6 mx-2 flex-shrink-0" />}
                   <span className="text-muted-foreground w-1/5 text-right">{day.temp_low_c}°</span>
                   <span className="w-1/5 text-right font-semibold">{day.temp_high_c}°</span>
                 </div>

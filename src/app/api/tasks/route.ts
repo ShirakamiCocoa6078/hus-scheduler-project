@@ -70,17 +70,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: '必須フィールドが不足しています。' }, { status: 400 });
     }
 
-    const newTask = await prisma.task.create({
-      data: {
+    const taskData: any = {
         userId: session.user.id,
         courseId: courseId,
         type: type,
         title: title,
         dueDate: new Date(dueDate),
-        location: location,
-        period: period ? parseInt(period, 10) : null,
         isCompleted: false,
-      },
+      };
+
+    // 타입이 'EXAM'일 경우, 시험 관련 데이터를 추가합니다.
+    if (type === 'EXAM') {
+        taskData.location = location;
+        taskData.period = period ? parseInt(period, 10) : null;
+    }
+
+    const newTask = await prisma.task.create({
+      data: taskData,
     });
 
     return NextResponse.json(newTask, { status: 201 });
