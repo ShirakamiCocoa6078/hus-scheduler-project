@@ -321,9 +321,14 @@ export default function DevAdminPage() {
           <Database className="mr-3 h-8 w-8" />
           개발자 관리 페이지
         </h1>
-        <Button variant="outline" asChild>
-          <Link href="/login">로그인 페이지로 돌아가기</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+            <Button variant="outline" asChild>
+                <Link href="/dashboard/admin/db-viewer">DB 뷰어</Link>
+            </Button>
+            <Button variant="outline" asChild>
+                <Link href="/login">로그인 페이지로 돌아가기</Link>
+            </Button>
+        </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
