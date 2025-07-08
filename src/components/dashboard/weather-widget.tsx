@@ -146,7 +146,7 @@ export function WeatherWidget() {
               {weather.weekly.map((day, index) => (
                 <div key={index} className="flex items-center justify-between text-sm p-1 rounded-md">
                   <span className="font-medium w-2/5">{day.date}</span>
-                  {day.icon_url && <img src={day.icon_url} alt={day.weather} className="w-6 h-6 mx-2 flex-shrink-0" />}
+                  {day.icon_url && <img src={day.icon_url} alt={day.weather} className="w-8 h-8 mx-2 object-contain flex-shrink-0" />}
                   <span className="text-muted-foreground w-1/5 text-right">{day.temp_low_c}°</span>
                   <span className="w-1/5 text-right font-semibold">{day.temp_high_c}°</span>
                 </div>

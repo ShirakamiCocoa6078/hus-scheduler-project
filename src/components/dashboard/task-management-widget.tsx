@@ -175,7 +175,7 @@ export function TaskManagementWidget() {
       <CardHeader>
         <div className="flex items-center justify-between">
             <CardTitle className="text-xl font-headline text-primary flex items-center gap-3">
-              <ListChecks className="h-7 w-7" />
+              <ListChecks className="h-7 w-7 flex-shrink-0" />
               <div className="flex flex-col">
                 <span className="leading-tight">今後の</span>
                 <span className="leading-tight">タスク</span>
