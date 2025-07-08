@@ -1,10 +1,10 @@
-
 "use client";
 
 import Link from "next/link";
 import { AuthButton } from "@/components/auth/auth-button";
-import { CalendarCheck } from "lucide-react";
+import { CalendarCheck, Shield } from "lucide-react";
 import { ThemeToggleButton } from "@/components/layout/theme-toggle-button";
+import { Button } from "@/components/ui/button";
 
 export function Header() {
   return (
@@ -19,6 +19,11 @@ export function Header() {
         <div className="flex items-center space-x-2">
           <ThemeToggleButton />
           <AuthButton />
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/dev-admin" aria-label="管理者ページへ移動">
+              <Shield className="h-5 w-5" />
+            </Link>
+          </Button>
         </div>
       </div>
     </header>
