@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Save, AlertTriangle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface CourseData {
   dayOfWeek: string;
@@ -28,6 +29,9 @@ function ImportPageComponent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const daysOfWeek = ["月", "火", "水", "木", "金", "土", "日"];
+  const periods = ["1", "2", "3", "4", "5", "6"];
 
   useEffect(() => {
     const data = searchParams.get('data');
@@ -53,6 +57,12 @@ function ImportPageComponent() {
   const handleInputChange = (index: number, field: keyof CourseData, value: string) => {
     const updatedCourses = [...courses];
     updatedCourses[index] = { ...updatedCourses[index], [field]: value };
+    setCourses(updatedCourses);
+  };
+
+  const handleSelectChange = (index: number, field: 'dayOfWeek' | 'period', value: string) => {
+    const updatedCourses = [...courses];
+    updatedCourses[index][field] = value;
     setCourses(updatedCourses);
   };
 
@@ -130,8 +140,22 @@ function ImportPageComponent() {
               <TableBody>
                 {courses.map((course, index) => (
                   <TableRow key={index}>
-                    <TableCell><Input value={course.dayOfWeek} onChange={(e) => handleInputChange(index, 'dayOfWeek', e.target.value)} /></TableCell>
-                    <TableCell><Input value={course.period} onChange={(e) => handleInputChange(index, 'period', e.target.value)} /></TableCell>
+                    <TableCell>
+                      <Select value={course.dayOfWeek} onValueChange={(value) => handleSelectChange(index, 'dayOfWeek', value)}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                              {daysOfWeek.map(day => <SelectItem key={day} value={day}>{day}</SelectItem>)}
+                          </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                         <Select value={course.period} onValueChange={(value) => handleSelectChange(index, 'period', value)}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                {periods.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </TableCell>
                     <TableCell><Input value={course.courseName} onChange={(e) => handleInputChange(index, 'courseName', e.target.value)} /></TableCell>
                     <TableCell><Input value={course.professor} onChange={(e) => handleInputChange(index, 'professor', e.target.value)} /></TableCell>
                     <TableCell><Input value={course.location} onChange={(e) => handleInputChange(index, 'location', e.target.value)} /></TableCell>

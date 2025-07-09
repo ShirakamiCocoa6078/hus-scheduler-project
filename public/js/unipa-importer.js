@@ -21,8 +21,8 @@
     document.body.appendChild(modal);
 
     const closeModal = () => {
-        if (overlay.parentNode) document.body.removeChild(overlay);
-        if (modal.parentNode) document.body.removeChild(modal);
+        document.body.removeChild(overlay);
+        document.body.removeChild(modal);
     };
     document.getElementById('hus-cancel-btn').onclick = closeModal;
 
@@ -34,51 +34,39 @@
 
             let courses = [];
             
-            // --- 3. 페이지 유형 자동 감지 및 데이터 추출 ---
+            // --- 3. 페이지 유형 자동 감지 및 데이터 추출 (디버깅 완료된 로직) ---
             const fullTimetableContainer = document.querySelector('#funcForm\\:j_idt387\\:j_idt3700');
             if (fullTimetableContainer) {
                 const courseElements = fullTimetableContainer.querySelectorAll('.ui-datalist-item .lessonArea');
                 
                 courses = Array.from(courseElements).flatMap(el => {
-                    const moodleLink = el.querySelector('a[title*="授業評価アンケート"]');
-                    const moodleCourseId = moodleLink ? new URL(moodleLink.href).searchParams.get('id') : null;
-
                     const baseData = {
                         courseName: el.querySelector('.lessonTitle')?.innerText.trim() || '',
                         professor: el.querySelector('.lessonDetail a')?.innerText.trim() || '',
                         location: el.querySelector('.lessonDetail > div:last-child')?.innerText.trim() || '',
-                        moodleCourseId: moodleCourseId
+                        moodleCourseId: (el.querySelector('a[title*="授業評価アンケート"]') ? new URL(el.querySelector('a[title*="授業評価アンケート"]').href).searchParams.get('id') : null)
                     };
-
-                    const dayPeriodElements = el.querySelectorAll('.period');
-                    if (dayPeriodElements.length === 0) return [];
-
-                    const dayPeriodText = Array.from(dayPeriodElements).map(p => p.innerText.trim()).join(' ');
-                    const dayPeriodParts = dayPeriodText.split(/\s+/).filter(Boolean);
-                    if (dayPeriodParts.length < 1) return [];
-
-                    const day = dayPeriodParts[0].replace(/[^月火水木金土日]/g, '');
-                    if (!day) return [];
                     
-                    const periodStrings = dayPeriodText.replace(day, '').trim();
-                    const allPeriods = periodStrings.split(/[\s・]+/).filter(Boolean);
+                    const dayPeriodText = el.querySelector('.period')?.innerText.trim() || '';
+                    // "水 1・2" 같은 패턴을 처리하기 위해 정규식 사용
+                    const match = dayPeriodText.match(/([月火水木金土日])\s+((?:[1-6](?:・[1-6])*))/);
+                    if (!match) return [];
 
-                    return allPeriods.map(period => ({
-                        ...baseData,
-                        dayOfWeek: day,
-                        period: period
-                    }));
+                    const day = match[1];
+                    const periodStr = match[2];
+                    const periods = periodStr.split('・');
+
+                    return periods.map(period => ({ ...baseData, dayOfWeek: day, period }));
                 });
             }
 
             if (courses.length === 0) {
-                const dateString = document.querySelector('.dateDisp')?.innerText.trim() || '';
+                 const dateString = document.querySelector('.dateDisp')?.innerText.trim() || '';
                 const dayMatch = dateString.match(/\((月|火|水|木|金|土|日)\)/);
                 if (dayMatch) {
                     const dayOfWeek = dayMatch[1];
                     const timeElements = document.querySelectorAll('#portalSchedule2 .lessonArea');
                     const periodMap = {"09:00": "1", "10:40": "2", "13:00": "3", "14:40": "4", "16:20": "5", "18:00": "6"};
-                    
                     courses = Array.from(timeElements).flatMap(el => {
                         const timeText = el.querySelector('.lessonHead p').innerText.trim().replace(/\s*-\s*/g, "-");
                         const timeMatch = timeText.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
@@ -87,18 +75,13 @@
                         
                         if (!period) return [];
 
-                        const moodleLink = el.querySelector('a[title*="授業評価アンケート"]');
-                        const moodleCourseId = moodleLink ? new URL(moodleLink.href).searchParams.get('id') : null;
+                        const professor = el.querySelector('.lessonDetail a')?.innerText.trim() || '';
+                        const location = el.querySelector('.lessonDetail > div:last-child')?.innerText.trim() || '';
+                        const courseName = el.querySelector('.lessonTitle')?.innerText.trim() || '';
+                        const moodleCourseId = (el.querySelector('a[title*="授業評価アンケート"]') ? new URL(el.querySelector('a[title*="授業評価アンケート"]').href).searchParams.get('id') : null);
 
-                        return [{
-                            dayOfWeek,
-                            period,
-                            courseName: el.querySelector('.lessonTitle')?.innerText.trim() || '',
-                            professor: el.querySelector('.lessonDetail a')?.innerText.trim() || '',
-                            location: el.querySelector('.lessonDetail > div:last-child')?.innerText.trim() || '',
-                            moodleCourseId
-                        }];
-                    }).filter(Boolean);
+                        return [{ dayOfWeek, period, courseName, professor, location, moodleCourseId }];
+                    }).filter(course => course.period);
                 }
             }
 
@@ -111,9 +94,7 @@
             const encodedData = btoa(encodeURIComponent(jsonString));
             const targetUrl = `https://hus-scheduler-project.vercel.app/dashboard/schedule/import?data=${encodedData}`;
 
-            // 현재 탭에서 페이지 이동
             window.location.href = targetUrl;
-
         } catch (error) {
             alert("エラー: " + error.message);
             console.error(error);
