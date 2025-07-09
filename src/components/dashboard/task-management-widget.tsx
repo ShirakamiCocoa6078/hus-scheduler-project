@@ -200,7 +200,7 @@ export function TaskManagementWidget() {
                     </AlertDialogContent>
                 </AlertDialog>
                 <Button size="sm" variant="outline" asChild>
-                    <Link href="/settings/moodle-sync">
+                    <Link href="/dashboard/settings/moodle-sync">
                         <PlusCircle className="mr-2 h-4 w-4" />
                         自動追加
                     </Link>

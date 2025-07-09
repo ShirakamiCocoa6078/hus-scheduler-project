@@ -95,7 +95,7 @@ export function CourseScheduleWidget() {
             この日は講義の予定がありません。
           </p>
           <Button asChild className="mt-4">
-            <Link href="/schedule/manage">
+            <Link href="/dashboard/schedule/manage">
               <PlusCircle className="mr-2 h-4 w-4" />
               時間割を編集する
             </Link>
@@ -153,7 +153,7 @@ export function CourseScheduleWidget() {
           講義スケジュール
         </CardTitle>
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/schedule/manage" aria-label="時間割を編集する">
+          <Link href="/dashboard/schedule/manage" aria-label="時間割を編集する">
             <Pencil className="h-5 w-5 text-muted-foreground hover:text-foreground" />
           </Link>
         </Button>
