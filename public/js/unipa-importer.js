@@ -26,75 +26,84 @@
     };
     document.getElementById('hus-cancel-btn').onclick = closeModal;
 
-    // --- 2. 확인 버튼 클릭 시, 검증된 로직으로 데이터 추출 실행 ---
+    // --- 2. 확인 버튼 클릭 시 데이터 추출 실행 ---
     document.getElementById('hus-confirm-btn').onclick = function() {
         try {
             this.innerText = '処理中...';
             this.disabled = true;
-
             let courses = [];
             
-            // --- 3. 페이지 유형 자동 감지 및 데이터 추출 (디버깅 완료된 로직) ---
+            // --- 3. 페이지 유형 자동 감지 및 최종 데이터 추출 로직 ---
             const fullTimetableContainer = document.querySelector('#funcForm\\:j_idt387\\:j_idt3700');
             if (fullTimetableContainer) {
+                console.log("「履修授業一覧」ページを認識しました。");
                 const courseElements = fullTimetableContainer.querySelectorAll('.ui-datalist-item .lessonArea');
                 
                 courses = Array.from(courseElements).flatMap(el => {
+                    const moodleLink = el.querySelector('a[title*="授業評価アンケート"]');
+                    const moodleCourseId = moodleLink ? new URL(moodleLink.href).searchParams.get('id') : null;
+
                     const baseData = {
                         courseName: el.querySelector('.lessonTitle')?.innerText.trim() || '',
                         professor: el.querySelector('.lessonDetail a')?.innerText.trim() || '',
                         location: el.querySelector('.lessonDetail > div:last-child')?.innerText.trim() || '',
-                        moodleCourseId: (el.querySelector('a[title*="授業評価アンケート"]') ? new URL(el.querySelector('a[title*="授業評価アンケート"]').href).searchParams.get('id') : null)
+                        moodleCourseId: moodleCourseId
                     };
-                    
-                    const dayPeriodText = el.querySelector('.period')?.innerText.trim() || '';
-                    // "水 1・2" 같은 패턴을 처리하기 위해 정규식 사용
-                    const match = dayPeriodText.match(/([月火水木金土日])\s+((?:[1-6](?:・[1-6])*))/);
-                    if (!match) return [];
 
-                    const day = match[1];
-                    const periodStr = match[2];
-                    const periods = periodStr.split('・');
+                    const dayPeriodElements = el.querySelectorAll('.lessonHead .period');
+                    if (dayPeriodElements.length === 0) return [];
 
-                    return periods.map(period => ({ ...baseData, dayOfWeek: day, period }));
+                    // 각 '.period' span 태그를 순회하며 개별 강의 객체를 생성
+                    return Array.from(dayPeriodElements).map(periodEl => {
+                        const text = periodEl.innerText.trim();
+                        const [day, period] = text.split(/\s+/);
+                        
+                        return { ...baseData, dayOfWeek: day, period: period };
+                    }).filter(c => c.dayOfWeek && c.period);
                 });
-            }
-
-            if (courses.length === 0) {
-                 const dateString = document.querySelector('.dateDisp')?.innerText.trim() || '';
+            } else {
+                // "日表示" (Daily View) ページを試す
+                console.log("「日表示」ページを試します。");
+                const dateString = document.querySelector('.dateDisp')?.innerText.trim() || '';
                 const dayMatch = dateString.match(/\((月|火|水|木|金|土|日)\)/);
                 if (dayMatch) {
                     const dayOfWeek = dayMatch[1];
                     const timeElements = document.querySelectorAll('#portalSchedule2 .lessonArea');
                     const periodMap = {"09:00": "1", "10:40": "2", "13:00": "3", "14:40": "4", "16:20": "5", "18:00": "6"};
-                    courses = Array.from(timeElements).flatMap(el => {
+                    
+                    courses = Array.from(timeElements).map(el => {
                         const timeText = el.querySelector('.lessonHead p').innerText.trim().replace(/\s*-\s*/g, "-");
                         const timeMatch = timeText.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
                         const periodText = el.querySelector('.lessonHead .period')?.innerText.match(/([1-6])/);
                         const period = periodText ? periodText[1] : (timeMatch ? periodMap[timeMatch[1]] : null);
                         
-                        if (!period) return [];
+                        const moodleLink = el.querySelector('a[title*="授業評価アンケート"]');
+                        const moodleCourseId = moodleLink ? new URL(moodleLink.href).searchParams.get('id') : null;
 
-                        const professor = el.querySelector('.lessonDetail a')?.innerText.trim() || '';
-                        const location = el.querySelector('.lessonDetail > div:last-child')?.innerText.trim() || '';
-                        const courseName = el.querySelector('.lessonTitle')?.innerText.trim() || '';
-                        const moodleCourseId = (el.querySelector('a[title*="授業評価アンケート"]') ? new URL(el.querySelector('a[title*="授業評価アンケート"]').href).searchParams.get('id') : null);
-
-                        return [{ dayOfWeek, period, courseName, professor, location, moodleCourseId }];
-                    }).filter(course => course.period);
+                        return {
+                            dayOfWeek,
+                            period,
+                            courseName: el.querySelector('.lessonTitle')?.innerText.trim() || '',
+                            professor: el.querySelector('.lessonDetail a')?.innerText.trim() || '',
+                            location: el.querySelector('.lessonDetail > div:last-child')?.innerText.trim() || '',
+                            moodleCourseId: moodleCourseId
+                        };
+                    }).filter(course => course.period && course.courseName);
                 }
             }
 
+
             if (courses.length === 0) {
-                throw new Error("時間割情報が見つかりません。「履修授業一覧」または「日表示」タブで実行してください。");
+                throw new Error("時間割情報が見つかりません。「履修授業一覧」ページで実行してください。");
             }
             
-            // --- 4. 데이터 인코딩 및 서버로 전송 ---
             const jsonString = JSON.stringify(courses);
             const encodedData = btoa(encodeURIComponent(jsonString));
             const targetUrl = `https://hus-scheduler-project.vercel.app/dashboard/schedule/import?data=${encodedData}`;
 
+            alert(`合計${courses.length}件の授業をインポートします。`);
             window.location.href = targetUrl;
+
         } catch (error) {
             alert("エラー: " + error.message);
             console.error(error);
