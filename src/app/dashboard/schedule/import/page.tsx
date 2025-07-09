@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, type ChangeEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Save, AlertTriangle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, Save, AlertTriangle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
-// Course 데이터 타입을 명확하게 정의
 interface CourseData {
   dayOfWeek: string;
   period: string;
@@ -33,10 +33,8 @@ function ImportPageComponent() {
     const data = searchParams.get('data');
     if (data) {
       try {
-        // URL 디코딩 -> Base64 디코딩 -> JSON 파싱
         const decodedJsonString = decodeURIComponent(atob(data));
         const parsedCourses: CourseData[] = JSON.parse(decodedJsonString);
-
         if (Array.isArray(parsedCourses) && parsedCourses.length > 0) {
           setCourses(parsedCourses);
         } else {
@@ -51,6 +49,12 @@ function ImportPageComponent() {
     }
     setIsLoading(false);
   }, [searchParams]);
+
+  const handleInputChange = (index: number, field: keyof CourseData, value: string) => {
+    const updatedCourses = [...courses];
+    updatedCourses[index] = { ...updatedCourses[index], [field]: value };
+    setCourses(updatedCourses);
+  };
 
   const handleSave = async () => {
     setIsSubmitting(true);
@@ -109,46 +113,49 @@ function ImportPageComponent() {
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-headline">インポート内容の確認</CardTitle>
-          <CardDescription>UNIPAから以下の授業データをインポートします。内容を確認し、問題がなければ保存してください。</CardDescription>
+          <CardDescription>UNIPAから以下の授業データをインポートします。内容を編集し、問題がなければ保存してください。</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="border rounded-lg overflow-hidden">
+          <div className="border rounded-lg overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>曜日</TableHead>
-                  <TableHead>時限</TableHead>
-                  <TableHead>授業名</TableHead>
-                  <TableHead>担当教員</TableHead>
-                  <TableHead>教室</TableHead>
+                  <TableHead className="min-w-[80px]">曜日</TableHead>
+                  <TableHead className="min-w-[80px]">時限</TableHead>
+                  <TableHead className="w-1/3 min-w-[200px]">授業名</TableHead>
+                  <TableHead className="min-w-[150px]">担当教員</TableHead>
+                  <TableHead className="min-w-[120px]">教室</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {courses.map((course, index) => (
                   <TableRow key={index}>
-                    <TableCell>{course.dayOfWeek}</TableCell>
-                    <TableCell>{course.period}</TableCell>
-                    <TableCell className="font-medium">{course.courseName}</TableCell>
-                    <TableCell>{course.professor}</TableCell>
-                    <TableCell>{course.location}</TableCell>
+                    <TableCell><Input value={course.dayOfWeek} onChange={(e) => handleInputChange(index, 'dayOfWeek', e.target.value)} /></TableCell>
+                    <TableCell><Input value={course.period} onChange={(e) => handleInputChange(index, 'period', e.target.value)} /></TableCell>
+                    <TableCell><Input value={course.courseName} onChange={(e) => handleInputChange(index, 'courseName', e.target.value)} /></TableCell>
+                    <TableCell><Input value={course.professor} onChange={(e) => handleInputChange(index, 'professor', e.target.value)} /></TableCell>
+                    <TableCell><Input value={course.location} onChange={(e) => handleInputChange(index, 'location', e.target.value)} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-          <div className="mt-6 flex justify-end">
+        </CardContent>
+        <CardFooter className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => router.push('/dashboard')}>
+                <XCircle className="mr-2 h-4 w-4" />
+                キャンセル
+            </Button>
             <Button onClick={handleSave} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               保存する
             </Button>
-          </div>
-        </CardContent>
+        </CardFooter>
       </Card>
     </div>
   );
 }
 
-// Suspense를 사용하여 URL 파라미터 로딩을 처리합니다.
 export default function ImportPage() {
   return (
     <Suspense fallback={

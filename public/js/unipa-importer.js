@@ -1,4 +1,3 @@
-
 (function() {
     // --- 1. UI 생성 및 동의 확인 로직 ---
     const overlay = document.createElement('div');
@@ -22,8 +21,8 @@
     document.body.appendChild(modal);
 
     const closeModal = () => {
-        document.body.removeChild(overlay);
-        document.body.removeChild(modal);
+        if (overlay.parentNode) document.body.removeChild(overlay);
+        if (modal.parentNode) document.body.removeChild(modal);
     };
     document.getElementById('hus-cancel-btn').onclick = closeModal;
 
@@ -40,33 +39,35 @@
             if (fullTimetableContainer) {
                 const courseElements = fullTimetableContainer.querySelectorAll('.ui-datalist-item .lessonArea');
                 
-                // 연속 강의 처리를 위해 .flatMap() 사용
                 courses = Array.from(courseElements).flatMap(el => {
-                    const dayPeriodText = el.querySelector('.period')?.innerText.trim() || '';
-                    const [day, periodStr] = dayPeriodText.split(' ');
-
-                    if (!day || !periodStr) return []; // 요일이나 교시 정보가 없으면 건너뜀
-
-                    const professor = el.querySelector('.lessonDetail a')?.innerText.trim() || '';
-                    const location = el.querySelector('.lessonDetail > div:last-child')?.innerText.trim() || '';
-                    const courseName = el.querySelector('.lessonTitle')?.innerText.trim() || '';
                     const moodleLink = el.querySelector('a[title*="授業評価アンケート"]');
                     const moodleCourseId = moodleLink ? new URL(moodleLink.href).searchParams.get('id') : null;
-                    
-                    // "1・2" 와 같은 형식을 처리하기 위해 교시를 분리
-                    const periods = periodStr.split('・');
 
-                    // 각 교시에 대해 별도의 강의 객체 생성
-                    return periods.map(period => {
-                        return {
-                            dayOfWeek: day,
-                            period: period.trim(),
-                            courseName: courseName,
-                            professor: professor,
-                            location: location,
-                            moodleCourseId: moodleCourseId
-                        };
-                    });
+                    const baseData = {
+                        courseName: el.querySelector('.lessonTitle')?.innerText.trim() || '',
+                        professor: el.querySelector('.lessonDetail a')?.innerText.trim() || '',
+                        location: el.querySelector('.lessonDetail > div:last-child')?.innerText.trim() || '',
+                        moodleCourseId: moodleCourseId
+                    };
+
+                    const dayPeriodElements = el.querySelectorAll('.period');
+                    if (dayPeriodElements.length === 0) return [];
+
+                    const dayPeriodText = Array.from(dayPeriodElements).map(p => p.innerText.trim()).join(' ');
+                    const dayPeriodParts = dayPeriodText.split(/\s+/).filter(Boolean);
+                    if (dayPeriodParts.length < 1) return [];
+
+                    const day = dayPeriodParts[0].replace(/[^月火水木金土日]/g, '');
+                    if (!day) return [];
+                    
+                    const periodStrings = dayPeriodText.replace(day, '').trim();
+                    const allPeriods = periodStrings.split(/[\s・]+/).filter(Boolean);
+
+                    return allPeriods.map(period => ({
+                        ...baseData,
+                        dayOfWeek: day,
+                        period: period
+                    }));
                 });
             }
 
@@ -77,18 +78,27 @@
                     const dayOfWeek = dayMatch[1];
                     const timeElements = document.querySelectorAll('#portalSchedule2 .lessonArea');
                     const periodMap = {"09:00": "1", "10:40": "2", "13:00": "3", "14:40": "4", "16:20": "5", "18:00": "6"};
-                    courses = Array.from(timeElements).map(el => {
+                    
+                    courses = Array.from(timeElements).flatMap(el => {
                         const timeText = el.querySelector('.lessonHead p').innerText.trim().replace(/\s*-\s*/g, "-");
                         const timeMatch = timeText.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
                         const periodText = el.querySelector('.lessonHead .period')?.innerText.match(/([1-6])/);
                         const period = periodText ? periodText[1] : (timeMatch ? periodMap[timeMatch[1]] : null);
-                        const professor = el.querySelector('.lessonDetail a')?.innerText.trim() || '';
-                        const location = el.querySelector('.lessonDetail > div:last-child')?.innerText.trim() || '';
-                        const courseName = el.querySelector('.lessonTitle')?.innerText.trim() || '';
+                        
+                        if (!period) return [];
+
                         const moodleLink = el.querySelector('a[title*="授業評価アンケート"]');
                         const moodleCourseId = moodleLink ? new URL(moodleLink.href).searchParams.get('id') : null;
-                        return { dayOfWeek, period, courseName, professor, location, moodleCourseId };
-                    }).filter(course => course.period);
+
+                        return [{
+                            dayOfWeek,
+                            period,
+                            courseName: el.querySelector('.lessonTitle')?.innerText.trim() || '',
+                            professor: el.querySelector('.lessonDetail a')?.innerText.trim() || '',
+                            location: el.querySelector('.lessonDetail > div:last-child')?.innerText.trim() || '',
+                            moodleCourseId
+                        }];
+                    }).filter(Boolean);
                 }
             }
 
@@ -101,9 +111,8 @@
             const encodedData = btoa(encodeURIComponent(jsonString));
             const targetUrl = `https://hus-scheduler-project.vercel.app/dashboard/schedule/import?data=${encodedData}`;
 
-            alert(`合計${courses.length}件の授業情報をインポートします。`);
-            window.open(targetUrl, '_blank');
-            closeModal();
+            // 현재 탭에서 페이지 이동
+            window.location.href = targetUrl;
 
         } catch (error) {
             alert("エラー: " + error.message);
