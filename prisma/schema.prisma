@@ -6,78 +6,28 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("POSTGRES_PRISMA_URL") // uses connection pooling
-  directUrl = env("POSTGRES_URL_NON_POOLING") // uses a direct connection
-  shadowDatabaseUrl = env("POSTGRES_URL_NON_POOLING")
+  provider          = "postgresql"
+  url               = env("POSTGRES_PRISMA_URL")
+  directUrl         = env("POSTGRES_URL_NON_POOLING")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
-
-model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
-  courses       Course[]  // Relation to Course model
-  tasks         Task[]    // Relation to Task model
-  onboardingData Json?    // To store onboarding info
-  isSetupComplete Boolean @default(false)
-  tempCoursesData Json?   // To store scraped data temporarily
-  archived      Boolean   @default(false)
-}
-
-model Course {
-  id             String   @id @default(cuid())
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courseName     String
-  dayOfWeek      Int      // 1 (월요일) - 7 (일요일)
-  period         Int      // 1 - 6
-  startTime      String
-  endTime        String
-  location       String?
-  tasks          Task[]
-}
-
-model Task {
-  id          String     @id @default(cuid())
-  userId      String
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courseId    String
-  course      Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  type        String     // "ASSIGNMENT" or "EXAM"
-  title       String
-  dueDate     DateTime
-  isCompleted Boolean    @default(false)
-  location    String?    // 시험 장소
-  period      Int?       // 시험 교시
-}
-
-model Weather {
-  id          String   @id @default(cuid())
-  locationKey String   @unique // e.g., "sapporo_teine"
-  data        Json
-  updatedAt   DateTime @updatedAt
-}
-
-
+// NextAuth Models based on @next-auth/prisma-adapter
 model Account {
   id                String  @id @default(cuid())
   userId            String
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String?
-  access_token      String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String?
+  id_token          String? @db.Text
   session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -90,10 +40,66 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model User {
+  id                String    @id @default(cuid())
+  name              String?
+  email             String?   @unique
+  emailVerified     DateTime?
+  image             String?
+  onboardingData    Json?
+  isSetupComplete   Boolean   @default(false)
+  archived          Boolean   @default(false)
+  tempCoursesData   Json?
+  accounts          Account[]
+  sessions          Session[]
+  courses           Course[]
+  tasks             Task[]
+}
+
 model VerificationToken {
   identifier String
   token      String   @unique
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// Application-specific models
+model Course {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseName  String
+  dayOfWeek   Int
+  period      Int
+  startTime   String
+  endTime     String
+  location    String?
+  tasks       Task[]
+
+  @@index([userId])
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  type        String // "ASSIGNMENT" or "EXAM"
+  title       String
+  dueDate     DateTime
+  isCompleted Boolean  @default(false)
+  location    String?
+  period      Int?
+
+  @@index([userId])
+  @@index([courseId])
+}
+
+model Weather {
+  id          String   @id @default(cuid())
+  locationKey String   @unique // e.g., "sapporo_teine"
+  data        Json
+  updatedAt   DateTime @updatedAt
 }
