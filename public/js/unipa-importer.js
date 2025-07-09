@@ -1,29 +1,41 @@
 (function() {
-    // --- 1. UI 생성 및 동의 확인 로직 ---
+    // --- 1. UI 생성 및 동의 확인 로직 (기존과 동일) ---
     const overlay = document.createElement('div');
+    overlay.id = 'hus-overlay';
     Object.assign(overlay.style, {
         position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
-        backgroundColor: 'rgba(0,0,0,0.7)', zIndex: '9998'
+        backgroundColor: 'rgba(0,0,0,0.6)', zIndex: '9998'
     });
+
     const modal = document.createElement('div');
+    modal.id = 'hus-modal';
     Object.assign(modal.style, {
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
         backgroundColor: 'white', padding: '25px', borderRadius: '10px',
-        zIndex: '9999', textAlign: 'center', fontFamily: 'sans-serif', color: '#333'
+        boxShadow: '0 5px 15px rgba(0,0,0,0.3)', zIndex: '9999',
+        width: '90%', maxWidth: '500px', textAlign: 'center'
     });
+
     modal.innerHTML = `
-        <h3 style="margin-top:0;">時間割インポート</h3>
-        <p>現在のページから時間割情報を抽出し、<br>HUS-schedulerに転送します。よろしいですか？</p>
-        <button id="hus-confirm-btn" style="background-color:#007bff; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; margin-right:10px;">はい、転送する</button>
-        <button id="hus-cancel-btn" style="background-color:#6c757d; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer;">キャンセル</button>
+        <h2 style="margin-top:0; font-size: 1.5em; color: #333;">HUS-scheduler インポート確認</h2>
+        <p style="margin-bottom: 25px; font-size: 1.1em; color: #666;">
+            現在のページの授業情報を HUS-scheduler にインポートしますか？<br>
+            「履修授業一覧」ページで実行することをお勧めします。
+        </p>
+        <div style="display: flex; justify-content: space-around;">
+            <button id="hus-cancel-btn" style="padding: 10px 20px; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 5px; cursor: pointer;">キャンセル</button>
+            <button id="hus-confirm-btn" style="padding: 10px 20px; border: none; background-color: #28a745; color: white; border-radius: 5px; cursor: pointer;">はい、インポートします</button>
+        </div>
     `;
+
     document.body.appendChild(overlay);
     document.body.appendChild(modal);
 
     const closeModal = () => {
-        document.body.removeChild(overlay);
-        document.body.removeChild(modal);
+        document.getElementById('hus-overlay')?.remove();
+        document.getElementById('hus-modal')?.remove();
     };
+
     document.getElementById('hus-cancel-btn').onclick = closeModal;
 
     // --- 2. 확인 버튼 클릭 시 데이터 추출 실행 ---
@@ -31,6 +43,7 @@
         try {
             this.innerText = '処理中...';
             this.disabled = true;
+
             let courses = [];
             
             // --- 3. 페이지 유형 자동 감지 및 최종 데이터 추출 로직 ---
@@ -40,58 +53,51 @@
                 const courseElements = fullTimetableContainer.querySelectorAll('.ui-datalist-item .lessonArea');
                 
                 courses = Array.from(courseElements).flatMap(el => {
-                    const moodleLink = el.querySelector('a[title*="授業評価アンケート"]');
-                    const moodleCourseId = moodleLink ? new URL(moodleLink.href).searchParams.get('id') : null;
-
                     const baseData = {
                         courseName: el.querySelector('.lessonTitle')?.innerText.trim() || '',
-                        professor: el.querySelector('.lessonDetail a')?.innerText.trim() || '',
                         location: el.querySelector('.lessonDetail > div:last-child')?.innerText.trim() || '',
-                        moodleCourseId: moodleCourseId
+                        moodleCourseId: null
                     };
 
                     const dayPeriodElements = el.querySelectorAll('.lessonHead .period');
                     if (dayPeriodElements.length === 0) return [];
 
-                    // 각 '.period' span 태그를 순회하며 개별 강의 객체를 생성
                     return Array.from(dayPeriodElements).map(periodEl => {
                         const text = periodEl.innerText.trim();
-                        const [day, period] = text.split(/\s+/);
+                        const [day, period] = text.split(' ');
+                        
+                        const individualPeriods = period ? period.split('・') : [];
+                        if(individualPeriods.length > 1) {
+                            return individualPeriods.map(p => ({ ...baseData, dayOfWeek: day, period: p }));
+                        }
                         
                         return { ...baseData, dayOfWeek: day, period: period };
-                    }).filter(c => c.dayOfWeek && c.period);
+                    }).flat();
                 });
             } else {
-                // "日表示" (Daily View) ページを試す
-                console.log("「日表示」ページを試します。");
-                const dateString = document.querySelector('.dateDisp')?.innerText.trim() || '';
-                const dayMatch = dateString.match(/\((月|火|水|木|金|土|日)\)/);
-                if (dayMatch) {
-                    const dayOfWeek = dayMatch[1];
-                    const timeElements = document.querySelectorAll('#portalSchedule2 .lessonArea');
-                    const periodMap = {"09:00": "1", "10:40": "2", "13:00": "3", "14:40": "4", "16:20": "5", "18:00": "6"};
-                    
-                    courses = Array.from(timeElements).map(el => {
-                        const timeText = el.querySelector('.lessonHead p').innerText.trim().replace(/\s*-\s*/g, "-");
-                        const timeMatch = timeText.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
-                        const periodText = el.querySelector('.lessonHead .period')?.innerText.match(/([1-6])/);
-                        const period = periodText ? periodText[1] : (timeMatch ? periodMap[timeMatch[1]] : null);
-                        
-                        const moodleLink = el.querySelector('a[title*="授業評価アンケート"]');
-                        const moodleCourseId = moodleLink ? new URL(moodleLink.href).searchParams.get('id') : null;
-
-                        return {
+                 console.log("「日表示」ページまたは他のページを認識しました。");
+                 const dateDisp = document.querySelector('.dateDisp')?.innerText.trim();
+                 const dayMatch = dateDisp?.match(/（(月|火|水|木|金|土|日)）/);
+                 if (dayMatch) {
+                     const dayOfWeek = dayMatch[1];
+                     const timeElements = document.querySelectorAll('#portalSchedule2 .lessonArea');
+                     const periodMap = {"09:00":"1", "10:40":"2", "13:00":"3", "14:40":"4", "16:20":"5", "18:00":"6"};
+                     courses = Array.from(timeElements).map(el => {
+                         const timeText = el.querySelector('.lessonHead p').innerText.trim();
+                         const timeMatch = timeText.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
+                         const periodText = el.querySelector('.lessonHead .period')?.innerText.match(/([1-6])/);
+                         const period = periodText ? periodText[1] : (timeMatch ? periodMap[timeMatch[1]] : null);
+                         
+                         return {
                             dayOfWeek,
-                            period,
+                            period: String(period),
                             courseName: el.querySelector('.lessonTitle')?.innerText.trim() || '',
-                            professor: el.querySelector('.lessonDetail a')?.innerText.trim() || '',
                             location: el.querySelector('.lessonDetail > div:last-child')?.innerText.trim() || '',
-                            moodleCourseId: moodleCourseId
-                        };
-                    }).filter(course => course.period && course.courseName);
-                }
+                            moodleCourseId: null
+                         };
+                     }).filter(c => c.period);
+                 }
             }
-
 
             if (courses.length === 0) {
                 throw new Error("時間割情報が見つかりません。「履修授業一覧」ページで実行してください。");
