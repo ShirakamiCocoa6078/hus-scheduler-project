@@ -7,25 +7,62 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("POSTGRES_PRISMA_URL")
-  directUrl = env("POSTGRES_URL_NON_POOLING")
+  url       = env("POSTGRES_PRISMA_URL") // uses connection pooling
+  directUrl = env("POSTGRES_URL_NON_POOLING") // uses a direct connection
+  shadowDatabaseUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
+
 model User {
-  id              String           @id @default(cuid())
-  name            String?
-  email           String?          @unique
-  emailVerified   DateTime?
-  image           String?
-  accounts        Account[]
-  sessions        Session[]
-  courses         Course[]
-  tasks           Task[]
-  isSetupComplete Boolean          @default(false)
-  archived        Boolean          @default(false)
-  onboardingData  Json?
-  tempCoursesData Json?            @default("[]")
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  courses       Course[]  // Relation to Course model
+  tasks         Task[]    // Relation to Task model
+  onboardingData Json?    // To store onboarding info
+  isSetupComplete Boolean @default(false)
+  tempCoursesData Json?   // To store scraped data temporarily
+  archived      Boolean   @default(false)
 }
+
+model Course {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseName     String
+  dayOfWeek      Int      // 1 (월요일) - 7 (일요일)
+  period         Int      // 1 - 6
+  startTime      String
+  endTime        String
+  location       String?
+  tasks          Task[]
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId    String
+  course      Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  type        String     // "ASSIGNMENT" or "EXAM"
+  title       String
+  dueDate     DateTime
+  isCompleted Boolean    @default(false)
+  location    String?    // 시험 장소
+  period      Int?       // 시험 교시
+}
+
+model Weather {
+  id          String   @id @default(cuid())
+  locationKey String   @unique // e.g., "sapporo_teine"
+  data        Json
+  updatedAt   DateTime @updatedAt
+}
+
 
 model Account {
   id                String  @id @default(cuid())
@@ -33,12 +70,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -59,43 +96,4 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
-}
-
-model Weather {
-  id          String   @id @default(cuid())
-  locationKey String   @unique // e.g., "sapporo_teine"
-  data        Json
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model Course {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courseName String
-  dayOfWeek  Int
-  period     Int
-  startTime  String
-  endTime    String
-  location   String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  tasks      Task[]
-}
-
-model Task {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courseId    String
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  type        String // "ASSIGNMENT" or "EXAM"
-  title       String
-  dueDate     DateTime
-  location    String?
-  period      Int?
-  isCompleted Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }

@@ -15,9 +15,7 @@ interface CourseData {
   dayOfWeek: string;
   period: string;
   courseName: string;
-  professor: string;
   location: string;
-  moodleCourseId?: string | null;
 }
 
 function ImportPageComponent() {
@@ -133,7 +131,6 @@ function ImportPageComponent() {
                   <TableHead className="min-w-[80px]">曜日</TableHead>
                   <TableHead className="min-w-[80px]">時限</TableHead>
                   <TableHead className="w-1/3 min-w-[200px]">授業名</TableHead>
-                  <TableHead className="min-w-[150px]">担当教員</TableHead>
                   <TableHead className="min-w-[120px]">教室</TableHead>
                 </TableRow>
               </TableHeader>
@@ -157,7 +154,6 @@ function ImportPageComponent() {
                         </Select>
                     </TableCell>
                     <TableCell><Input value={course.courseName} onChange={(e) => handleInputChange(index, 'courseName', e.target.value)} /></TableCell>
-                    <TableCell><Input value={course.professor} onChange={(e) => handleInputChange(index, 'professor', e.target.value)} /></TableCell>
                     <TableCell><Input value={course.location} onChange={(e) => handleInputChange(index, 'location', e.target.value)} /></TableCell>
                   </TableRow>
                 ))}

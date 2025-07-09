@@ -54,13 +54,11 @@ export async function POST(request: Request) {
 
         return {
           courseName: course.courseName,
-          professor: course.professor,
           dayOfWeek: dayAsNumber,
           period: period,
           startTime: times.start,
           endTime: times.end,
           location: course.location,
-          moodleCourseId: course.moodleCourseId,
           userId: userId,
         };
     }).filter((c): c is Prisma.CourseCreateManyInput => c !== null); // Filter out null values
