@@ -11,13 +11,15 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 export default function MoodleSyncPage() {
     const { toast } = useToast();
+    const router = useRouter();
     const [moodleUrl, setMoodleUrl] = useState("");
     const [isSaving, setIsSaving] = useState(false);
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!moodleUrl.includes("https://moodle.hus.ac.jp/calendar/export_execute.php")) {
             toast({
                 variant: "destructive",
@@ -28,14 +30,33 @@ export default function MoodleSyncPage() {
         }
 
         setIsSaving(true);
-        // This is a placeholder for the functionality
-        setTimeout(() => {
+        try {
+            const response = await fetch('/api/settings/moodle-sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ moodleUrl }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'URLの保存に失敗しました。');
+            }
+
             toast({
                 title: "保存しました",
                 description: "MoodleカレンダーのURLが正常に保存されました。",
             });
+            router.push('/dashboard');
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "不明なエラーが発生しました。";
+            toast({
+                variant: "destructive",
+                title: "保存エラー",
+                description: message,
+            });
+        } finally {
             setIsSaving(false);
-        }, 1000);
+        }
     };
 
     return (
