@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
-import { BookmarkPlus, AlertCircle, Copy } from "lucide-react";
+import { BookmarkPlus, AlertCircle, Copy, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 
@@ -71,8 +71,18 @@ export default function ScheduleManagePage() {
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>実行方法</AlertTitle>
-            <AlertDescription>
-              UNIPAにログイン後、ブックマークバーに追加した「UNIPA時間割インポート」をクリックしてください。
+            <AlertDescription className="space-y-2">
+              <p>
+                まず下のボタンからUNIPAを開いてログインしてください。
+                <br />
+                その後、ブックマークバーに追加した「UNIPA時間割インポート」をクリックしてください。
+              </p>
+              <Button asChild>
+                <Link href="https://unipa.hus.ac.jp/">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  HUS-UNIPAを開く
+                </Link>
+              </Button>
             </AlertDescription>
           </Alert>
 
