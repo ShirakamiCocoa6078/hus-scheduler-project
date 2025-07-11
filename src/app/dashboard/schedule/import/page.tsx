@@ -1,12 +1,13 @@
+
 "use client";
 
-import { useEffect, useState, Suspense, type ChangeEvent } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Loader2, Save, AlertTriangle, XCircle } from "lucide-react";
+import { Loader2, Save, AlertTriangle, XCircle, Trash2, PlusCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -63,6 +64,15 @@ function ImportPageComponent() {
     updatedCourses[index][field] = value;
     setCourses(updatedCourses);
   };
+
+  const handleAddRow = () => {
+    setCourses([...courses, { dayOfWeek: "月", period: "1", courseName: "", location: "" }]);
+  };
+
+  const handleRemoveRow = (indexToRemove: number) => {
+    setCourses(courses.filter((_, index) => index !== indexToRemove));
+  };
+
 
   const handleSave = async () => {
     setIsSubmitting(true);
@@ -128,10 +138,11 @@ function ImportPageComponent() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-[80px]">曜日</TableHead>
-                  <TableHead className="min-w-[80px]">時限</TableHead>
+                  <TableHead className="w-[120px]">曜日</TableHead>
+                  <TableHead className="w-[120px]">時限</TableHead>
                   <TableHead className="w-1/3 min-w-[200px]">授業名</TableHead>
                   <TableHead className="min-w-[120px]">教室</TableHead>
+                  <TableHead className="w-[80px]">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -155,21 +166,32 @@ function ImportPageComponent() {
                     </TableCell>
                     <TableCell><Input value={course.courseName} onChange={(e) => handleInputChange(index, 'courseName', e.target.value)} /></TableCell>
                     <TableCell><Input value={course.location} onChange={(e) => handleInputChange(index, 'location', e.target.value)} /></TableCell>
+                    <TableCell>
+                        <Button variant="ghost" size="icon" onClick={() => handleRemoveRow(index)}>
+                            <Trash2 className="h-4 w-4 text-destructive"/>
+                        </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
         </CardContent>
-        <CardFooter className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => router.push('/dashboard')}>
-                <XCircle className="mr-2 h-4 w-4" />
-                キャンセル
+        <CardFooter className="flex justify-between items-center">
+            <Button variant="outline" onClick={handleAddRow}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                空の行を追加
             </Button>
-            <Button onClick={handleSave} disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              保存する
-            </Button>
+            <div className="flex space-x-2">
+                <Button variant="outline" onClick={() => router.push('/dashboard')}>
+                    <XCircle className="mr-2 h-4 w-4" />
+                    キャンセル
+                </Button>
+                <Button onClick={handleSave} disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  保存する
+                </Button>
+            </div>
         </CardFooter>
       </Card>
     </div>
