@@ -146,7 +146,7 @@ export default function ScheduleEditPage() {
             <p className="text-muted-foreground">講義の追加、編集、削除ができます。</p>
           </div>
           <div className="flex gap-2">
-             <Button variant="outline" asChild><Link href="/dashboard/schedule/import">UNIPAからインポート</Link></Button>
+             <Button variant="outline" asChild><Link href="/dashboard/schedule/manage">UNIPAからインポート</Link></Button>
              <Button onClick={() => handleOpenModal(null)}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 新しい講義を追加
